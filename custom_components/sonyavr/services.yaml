@@ -1,0 +1,22 @@
+send_command:
+  name: Send Command
+  description: Send commands to Sony AVR processor
+  fields:
+    Command:
+      name: Command
+      description: "The Command to send to the AVR."
+      required: true 
+      selector:
+        select:
+          multiple: false
+          options:
+            - CMD_MUTE
+            - CMD_UNMUTE
+            - CMD_POWER_ON
+            - CMD_POWER_OFF
+
+discover:
+  name: Discover Sony AVR 
+  description: Discover Sony AVR on the network and update states
+
+
