@@ -1,6 +1,10 @@
 send_command:
   name: Send Command
   description: Send commands to Sony AVR processor
+  target:
+    entity:
+      integration: sonyavr
+      domain: media_player
   fields:
     Command:
       name: Command
@@ -10,10 +14,23 @@ send_command:
         select:
           multiple: false
           options:
-            - CMD_MUTE
-            - CMD_UNMUTE
-            - CMD_POWER_ON
-            - CMD_POWER_OFF
+            - Mute
+            - UnMute
+            - Power On
+            - Power Off
+            - Volume Up
+            - Volume Down
+            - Source Up
+            - Source Down
+            - Set Volume
+            - Set Sound Field
+            - Set Source
+    Value:
+      name: Command Value
+      description: "The value associated with the command."
+      required: false
+      selector:
+        text:
 
 discover:
   name: Discover Sony AVR 

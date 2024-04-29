@@ -7,7 +7,7 @@ import asyncio
 
 from .const import DOMAIN
 
-from .sonyavr import SonyAVR
+from .sonyavr import SonyAVR, DeviceService
 
 import voluptuous as vol
 
@@ -20,7 +20,7 @@ from homeassistant.components.media_player import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
 	config_validation as cv,
@@ -42,7 +42,9 @@ from .const import (
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 	{
-		vol.Optional(CONF_HOST): cv.string
+		vol.Required(CONF_HOST): cv.string,
+		vol.Required(CONF_NAME): cv.string,
+     	vol.Required(CONF_MODEL): cv.string
 	}
 )
 
@@ -69,96 +71,67 @@ async def async_setup_entry(
 	if config_entry.options:
 		config.update(config_entry.options)
 
-	receivers = []
+	_LOGGER.debug("Adding %s from config", config[CONF_HOST])
 
-#	if config[CONF_DISCOVER]:
-#		receivers = await hass.async_add_executor_job(Emotiva.discover,3)
-#		_configdiscovered = False
-#		for receiver in receivers:
-#
-#			_ip, _xml = receiver
-#				
-#			emotiva = Emotiva(_ip, _xml)
-#
-#			#Get additional notify
-#			if config.get(CONF_NOTIFICATIONS) is not None:
-#				_LOGGER.debug("Adding %s",config[CONF_NOTIFICATIONS])
-#				_notify_set = set(config[CONF_NOTIFICATIONS].replace(" ","").split(","))
-#			else:
-#				_notify_set = set()
-#
-#			emotiva._events = emotiva._events.union(_notify_set)
-#			emotiva._current_state.update(dict((m, None) for m in _notify_set))
-#		
-#			_LOGGER.debug("Adding %s from discovery", _ip)
-#
-#			async_add_entities([EmotivaDevice(emotiva, hass)])
+	sonyavr = SonyAVR(config[CONF_HOST], config[CONF_NAME], config[CONF_MODEL])
 
-
-	if config[CONF_MANUAL] and not any([config[CONF_HOST] in tup for tup in receivers]):
-		_LOGGER.debug("Adding %s from config", config[CONF_HOST])
-
-		sonyavr = SonyAVR(config[CONF_HOST])
-
-#		_notify_set = set()
-
-#		emotiva._events = emotiva._events.union(_notify_set)
-#		emotiva._current_state.update(dict((m, None) for m in _notify_set))
-
-
-		async_add_entities([SonyAVRDevice(sonyavr, hass)])
+	async_add_entities([SonyAVRDevice(sonyavr, hass)])
 
 	# Register entity services
 	platform = entity_platform.async_get_current_platform()
 	platform.async_register_entity_service(
 		SERVICE_SEND_COMMAND,
 		{
-			vol.Required("Command"): cv.string
+			vol.Required("Command"): cv.string,
+			vol.Optional("Value"): cv.string
+			
 		},
 		SonyAVRDevice.send_command.__name__,
 	)
 
 
 class SonyAVRDevice(MediaPlayerEntity):
-	# Representation of a Emotiva Processor
+	# Representation of a Sony AVR
 
 	def __init__(self, device, hass):
 
 		self._device = device
 		self._hass = hass
 		self._entity_id = "media_player.sonyavr"
-		self._unique_id = "sonyavr_"+"name".replace(" ","_").replace("-","_").replace(":","_")
+		self._unique_id = "sonyavr_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
 		self._device_class = "receiver"
 		self._notifier_task = None
 		
 	async def async_added_to_hass(self):
 		"""Subscribe to device events."""
 		self._device.set_update_cb(self.async_update_callback)
-		# self._hass.async_create_task(self._device.run_notifier())
-		# changed to stop startup hanging
-		#*****
-		#self._notifier_task = asyncio.create_task(self._device.run_notifier())
-		
-		#await self._device.udp_connect()
-		#await self._device.async_subscribe_events()
 
+		self._notifier_task = asyncio.create_task(self._device.run_notifier())
+		
+		await self._device.command_service.async_connect()
+
+		# Turn on and off to force the feedback
+		await self._device.async_turn_on()
+		await asyncio.sleep(10)
+		await self._device.async_update_status()
+		await asyncio.sleep(1)
+		await self._device.async_turn_off()
 
 	def async_update_callback(self, reason = False):
 		"""Update the device's state."""
-		_LOGGER.debug("Calling async_schedule_update_ha_state")
 		self.async_schedule_update_ha_state()
 		
 
 	async def async_will_remove_from_hass(self) -> None:
 		"""Disconnect device object when removed."""
 		self._device.set_update_cb(None)
-		#*****
-		# await self._device.async_unsubscribe_events()
-		# await self._device.udp_disconnect()
-		#try:
-		#	self._notifier_task.cancel()
-		#except:
-		#	pass
+  
+		await self._device.command_service.async_disconnect()
+
+		try:
+			self._notifier_task.cancel()
+		except:
+			pass
 
 	should_poll = False
 
@@ -226,23 +199,19 @@ class SonyAVRDevice(MediaPlayerEntity):
 
 	@property
 	def source_list(self):
-		#return self._device.sources
-		return ""
-	
+		return self._device.sources
+		
 	@property
 	def source(self):
-		#return self._device.source
-		return ""
+		return self._device.source
 	
 	@property
 	def sound_mode_list(self):
-		#return self._device.modes	
-		return ""
+		return self._device.modes
 	
 	@property
 	def sound_mode(self):
-		#return self._device.mode
-		return ""
+		return self._device.mode
 
 	@property
 	def supported_features(self) -> MediaPlayerEntityFeature:
@@ -250,34 +219,27 @@ class SonyAVRDevice(MediaPlayerEntity):
 
 	@property
 	def is_volume_muted(self):
-		#return self._device.mute
-		return False
-	
-#	@property 
-#	def extra_state_attributes(self):
-#
-#		_attributes = {}
-#
-#		for ev in self._device._events:
-#			if ev.startswith("power") == False:
-#				_attributes[ev] = self._device._current_state[ev]
-#
-#		if self._device.mute == True:
-#			_attributes["volume"] = "0"
-#		return _attributes
-	
+		return self._device.mute
+		
+	@property 
+	def extra_state_attributes(self):
+
+		_attributes = {}
+
+		_attributes["volume"] = self._device.volume
+		return _attributes
+
 	@property
 	def volume_level(self):
-		#if self._device.volume is None:
+		if (self._device.volume is None):
 		#	# device is muted
-		#	return 0.0
-		#else:
-		#	return float("%.2f" % ((self._device.volume-self._device._volume_min)/self._device._volume_range))
-		return 0
+			return 0.0
+		else:
+			return float("%.2f" % ((self._device.volume-self._device.volume_min)/self._device.volume_range))
 
 	async def async_set_volume_level(self, volume: float) -> None:
-		_vol = ((volume * self._device._volume_range)+self._device._volume_min)
-		await self._device.async_volume_set(str(_vol))
+		_vol = ((volume * self._device.volume_range)+self._device.volume_min)
+		await self._device.async_volume_set(int(_vol))
 
 	async def async_turn_off(self) -> None:
 		await self._device.async_turn_off()
@@ -294,12 +256,8 @@ class SonyAVRDevice(MediaPlayerEntity):
 	async def async_volume_down(self):
 		await self._device.async_volume_down()
 
-	#def update(self):
-	#	self._device._update_status(self._device._events, float(self._device._proto_ver))		
-
 	async def async_update(self):
-		pass
-		#await self._device.async_update_status(self._device._events, float(self._device._proto_ver))
+		await self._device.async_update_status()
 
 	async def async_select_source(self, source: str) -> None:		
 		await self._device.async_set_source(source)
@@ -307,5 +265,5 @@ class SonyAVRDevice(MediaPlayerEntity):
 	async def async_select_sound_mode(self, sound_mode: str) -> None:
 		await self._device.async_set_mode(sound_mode)
 
-	async def send_command(self, Command, Value):
-		await self._device.async_send_command(Command,Value)
+	async def send_command(self, Command, Value = None):
+		await self._device.async_send_command(Command, Value)

@@ -5,13 +5,16 @@ __author__ = "michaelkapuscik"
 import socket
 import time
 
-import threading
 import logging
 
 import time
 import binascii
 
-logging.basicConfig(level = logging.DEBUG, format = "%(asctime)-15s [%(name)-5s] [%(levelname)-5s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+import asyncio
+
+_LOGGER = logging.getLogger(__name__)
+
+# logging.basicConfig(level = logging.DEBUG, format = "%(asctime)-15s [%(name)-5s] [%(levelname)-5s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
 # 80, 5000, 8008, 8009, 10000, 22222, 33335, 33336, 35275, 41824, 50001, 50002, 52323, 54400
 TCP_PORT_1 = 33335
@@ -23,16 +26,20 @@ LOW_VOLUME = 15
 MEDIUM_VOLUME = 30
 MAX_VOLUME = 45
 LIMIT_VOLUME = MAX_VOLUME
+VOLUME_RANGE = MAX_VOLUME-MIN_VOLUME
 
-SOURCE_NAMES = [ "bdDvd", "game", "satCaTV", "video", "tv", "saCd", "fmTuner", "bluetooth", "usb", "homeNetwork", "internetServices", "screenMirroring", "googleCast" ]
+SOURCE_NAMES = [ "bd", "dvd", "game", "satCaTV", "video1","video2","video3", "tv", "saCd", "fmTuner", "usb", "homeNetwork", "internetServices" ]
 SOUND_FIELD_NAMES = [ [ "twoChannelStereo", "analogDirect", "multiStereo", "afd" ], [ "pl2Movie", "neo6Cinema", "hdDcs" ], [ "pl2Music", "neo6Music", "concertHallA", "concertHallB", "concertHallC", "jazzClub", "liveConcert", "stadium", "sports", "portableAudio" ] ]
 
 # Byte 5 (0x00) seems to be the zone (not STR-DN-860, but maybe STR-DN-1060)
 CMD_SOURCE_MAP = {
-	"bdDvd":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
+	"bd":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
+	"bluray":               bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
 	"game":                 bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1C, 0x00]),
 	"satCaTV":              bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x16, 0x00]),
-	"video":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x10, 0x00]),
+	"video1":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x10, 0x00]),
+	"video2":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x11, 0x00]),
+	"video3":                bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x12, 0x00]),
 	"tv":                   bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1A, 0x00]),
 	"saCd":                 bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x02, 0x00]),
 	# "hdmi1":              bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x21, 0x00]),
@@ -114,25 +121,31 @@ FEEDBACK_TIMER_OFF        = bytearray([0xFF])
 # - power off / unmuted / muted
 # - zero byte
 # byte 5 normally 0x00, but seldom 0x03
+# byte 7 maybe 0 or may copy byte6, so ignore 7
+# source, power_on_mute_off, power_on_mute_on, power_off
 FEEDBACK_SOURCE_MAP = {
-	"bdDvd":                bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1B, 0x00]),
-	"game":                 bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1C, 0x00]),
-	"satCaTV":              bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x16, 0x00]),
-	"video":                bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0xFF, 0x00]),
-	"tv":                   bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1A, 0x00]),
-	"saCd":                 bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x02, 0x00]),
-	"fmTuner":              bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2E, 0x00]),
-	"amTuner":              bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2F, 0x00]),
-	"bluetooth":            bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x33, 0x00]),
-	"usb":                  bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x34, 0x00]),
-	"homeNetwork":          bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3D, 0x00]),
-	"internetServices":     bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3E, 0x00]),
-	"screenMirroring":      bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x40, 0x00]),
-	"googleCast":           bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0xFF, 0x00]),
+	"bd":                	[bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1B, 0x00]),	bytearray([0x21, 0x00, 0x78]), bytearray([0x23, 0x00, 0x76]), bytearray([0x20, 0x00, 0x79])], 
+	"DVD":                	[bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x19, 0x00]),	bytearray([0x21, 0x00, 0x7C]), bytearray([0x23, 0x00, 0x7A]), bytearray([0x20, 0x00, 0x7D])],  
+	"game":                 [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1C, 0x00]),	bytearray([0x21, 0x00, 0x7C]), bytearray([0x23, 0x00, 0x74]), bytearray([0x20, 0x00, 0x77])], 
+	"satCaTV":              [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x16, 0x00]),	bytearray([0x21, 0x00, 0x82]), bytearray([0x23, 0x00, 0x80]), bytearray([0x20, 0x00, 0x83])], 
+	"video1":               [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x10, 0x00]),	bytearray([0x21, 0x00, 0x8E]), bytearray([0x23, 0x00, 0x8C]), bytearray([0x20, 0x00, 0x8F])], 
+	"video2":               [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x11, 0x00]),	bytearray([0x21, 0x00, 0x8C]), bytearray([0x23, 0x00, 0x8A]), bytearray([0x20, 0x00, 0x8D])], 
+	"video3":               [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x12, 0x00]),	bytearray([0x21, 0x00, 0x8A]), bytearray([0x23, 0x00, 0x88]), bytearray([0x20, 0x00, 0x8B])], 
+	"tv":                   [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1A, 0x00]),	bytearray([0x21, 0x00, 0X92]), bytearray([0x23, 0x00, 0x90]), bytearray([0x20, 0x00, 0x93])], 
+	"saCd":                 [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x02, 0x00]),	bytearray([0x21, 0x00, 0x32]), bytearray([0x23, 0x00, 0xA8]), bytearray([0x20, 0x00, 0xAB])], 
+	"fmTuner":              [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2E, 0x00]),	bytearray([0x21, 0x00, 0xAA]), bytearray([0x2B, 0x00, 0x48]), bytearray([0x28, 0x00, 0x4B])], 
+	"amTuner":              [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2F, 0x00]),	bytearray([0x21, 0x00, 0xAA]), bytearray([0x2B, 0x00, 0x46]), bytearray([0x28, 0x00, 0x49])], 
+	"bluetooth":            [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x33, 0x00]),	bytearray([0x21, 0x00, 0xAA]), bytearray([0x23, 0x00, 0x46]), bytearray([0x20, 0x00, 0xAB])], 
+	"usb":                  [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x34, 0x00]),	bytearray([0x29, 0x00, 0x3E]), bytearray([0x2B, 0x00, 0x3C]), bytearray([0x28, 0x00, 0x3F])], 
+	"homeNetwork":          [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3D, 0x00]),	bytearray([0x29, 0x00, 0x2C]), bytearray([0x2B, 0x00, 0x2A]), bytearray([0x28, 0x00, 0x2D])], 
+	"internetServices":		[bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3E, 0x00]),	bytearray([0x21, 0x00, 0x32]), bytearray([0x2B, 0x00, 0x28]), bytearray([0x28, 0x00, 0x2B])], 
+	"googleCast":           [bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0xFF, 0x00]),	bytearray([0x21, 0x00, 0xAA]), bytearray([0x23, 0x00, 0xA8]), bytearray([0x20, 0x00, 0xAB])] 
 }
-FEEDBACK_POWER_OFF        = bytearray([0x10])
-FEEDBACK_MUTE_OFF         = bytearray([0x11])
-FEEDBACK_MUTE_ON          = bytearray([0x13])
+#FEEDBACK_POWER_OFF        = bytearray([0x10])
+FEEDBACK_POWER_OFF        = bytearray([0x20, 0x00, 0xAB])
+FEEDBACK_POWER_ON_MUTE_OFF = bytearray([0x21, 0x00, 0xAA])
+FEEDBACK_POWER_ON_MUTE_ON     = bytearray([0x23, 0x00, 0xA8])
+
 
 FEEDBACK_SOUND_FIELD_MAP = {
 	"twoChannelStereo":     bytearray([0x02, 0x04, 0xAB, 0x82, 0x00, 0x00]),
@@ -176,20 +189,23 @@ FEEDBACK_AUTO_PHASE_MATCHING_AUTO = bytearray([0x2, 0x4, 0xab, 0x97, 0x48, 0x2])
 FEEDBACK_AUTO_PHASE_MATCHING_OFF  = bytearray([0x2, 0x4, 0xab, 0x97, 0x48, 0x0])
 
 SOURCE_MENU_MAP = {
-	"bdDvd": "Blueray / DVD",
+	"bd": "Blueray",
+	"DVD": "DVD",
 	"game": "Game",
 	"satCaTV": "Sat / Cable",
-	"video": "Video",
+	"video1": "Video 1",
+	"video2": "Video 2",
+	"video3": "Video 3",
 	"tv": "TV",
 	"saCd": "CD",
 	"fmTuner": "FM Tuner",
 	"amTuner": "AM Tuner",
-	"bluetooth": "Bluetooth",
+#	"bluetooth": "Bluetooth",
 	"usb": "USB",
 	"homeNetwork": "Home Network",
 	"internetServices": "Internet Services",
-	"screenMirroring": "Screen Mirroring",
-	"googleCast": "Google Cast",
+#	"screenMirroring": "Screen Mirroring",
+#	"googleCast": "Google Cast",
 }
 
 SOUND_FIELD_MENU_MAP = {
@@ -253,10 +269,9 @@ FM_TUNER_MENU_MAP = {
 
 class StateService():
 
-	sony_av_indicator = None
 	initialized = False
 
-	logger = logging.getLogger("state")
+	# logger = logging.getLogger("sonyavr.state")
 
 	states = {
 		"power": True,
@@ -309,21 +324,21 @@ class StateService():
 			changed = (power != self.power)
 			self.power = power
 			if changed:
-				self.logger.debug("Power state: %s" % power)
+				_LOGGER.debug("Power state: %s" % power)
 
 	def update_hdmiout(self, hdmiout, state_only = False):
 		if self.initialized:
 			changed = (hdmiout != self.hdmiout)
 			self.hdmiout = hdmiout
 			if changed:
-				self.logger.debug("HDMI Out: %s" % hdmiout)
+				_LOGGER.debug("HDMI Out: %s" % hdmiout)
 
 	def update_volume(self, vol):
 		if self.initialized:
 			if vol > self.volume:
 				self.muted = False
 			self.volume = vol
-			self.logger.debug("Volume %d" % vol)
+			_LOGGER.debug("Volume %d" % vol)
 
 	def update_muted(self, muted):
 		if self.initialized:
@@ -331,57 +346,56 @@ class StateService():
 			self.muted = muted
 			if changed:
 				if self.muted:
-					self.logger.debug("Muted")
+					_LOGGER.debug("Muted")
 				else:
-					self.logger.debug("Unmuted")
+					_LOGGER.debug("Unmuted")
 
 	def update_source(self, source, state_only = False):
 		changed = (source != self.source)
 		self.source = source
 		if not state_only:
 			self.update_power(True, True)
-			self.sony_av_indicator.update_label()
 		if changed:
-			self.logger.debug("Source: %s" % source)
+			_LOGGER.debug("Source: %s" % source)
 
 	def update_sound_field(self, sound_field, state_only = False):
 		changed = (sound_field != self.sound_field)
 		self.sound_field = sound_field
 		if changed:
-			self.logger.debug("Sound field: %s" % sound_field)
+			_LOGGER.debug("Sound field: %s" % sound_field)
 
 	def update_pure_direct(self, pure_direct):
 		if self.initialized:
 			self.pure_direct = pure_direct
-			self.logger.debug("Pure Direct: %s" % pure_direct)
+			_LOGGER.debug("Pure Direct: %s" % pure_direct)
 
 	def update_sound_optimizer(self, sound_optimizer):
 		if self.initialized:
 			self.sound_optimizer = sound_optimizer
-			self.logger.debug("Sound Optimizer: %s" % sound_optimizer)
+			_LOGGER.debug("Sound Optimizer: %s" % sound_optimizer)
 
 	def update_timer(self, hours, minutes, seconds, set_timer, was_updated):
 		self.timer = set_timer
 		self.timer_hours = hours
 		self.timer_minutes = minutes
-		self.logger.debug("Timer: %d:%d:%d Set: %s Updated: %s" %(hours, minutes, seconds, set_timer, was_updated))
+		_LOGGER.debug("Timer: %d:%d:%d Set: %s Updated: %s" %(hours, minutes, seconds, set_timer, was_updated))
 
 	def update_fmtuner(self, fmtuner, stereo, freq):
 		if self.initialized:
 			self.fmtuner = fmtuner
 			self.fmtunerstereo = stereo
 			self.fmtunerfreq = freq
-			self.logger.debug("FM Tuner: %d (%3.2f MHz) Stereo: %s", fmtuner, freq, stereo)
+			_LOGGER.debug("FM Tuner: %d (%3.2f MHz) Stereo: %s", fmtuner, freq, stereo)
 
 	def update_auto_standby(self, auto_standby):
 		if self.initialized:
 			self.auto_standby = auto_standby
-			self.logger.debug("Auto Standby: %s" % auto_standby)
+			_LOGGER.debug("Auto Standby: %s" % auto_standby)
 
 	def update_auto_phase_matching(self, auto_phase_matching):
 		if self.initialized:
 			self.auto_phase_matching = auto_phase_matching
-			self.logger.debug("Auto Phase Matching: %s", auto_phase_matching)
+			_LOGGER.debug("Auto Phase Matching: %s", auto_phase_matching)
 
 
 class CommandService():
@@ -391,7 +405,7 @@ class CommandService():
 	initialized = False
 	block_sending = False
 
-	scroll_step_volume = 2
+	scroll_step_volume = 1
 
 	logger = logging.getLogger("cmd")
 	data_logger = logging.getLogger("send")
@@ -414,11 +428,48 @@ class CommandService():
 			s.connect((self.device_service.ip, TCP_PORT_1))
 			s.send(cmd)
 			s.close()
-			self.data_logger.debug("%s", ", ".join([hex(byte) for byte in cmd]))
+			_LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
 		else:
 			# Wait on this thread or get a segmentation fault!
-			time.sleep (50.0 / 1000.0);
-			# self.data_logger.debug("%s", ", ".join([hex(byte) for byte in cmd]))
+			time.sleep (50.0 / 1000.0)
+			# _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
+
+
+	async def async_connect(self):
+		
+		self.command_reader, self.command_writer = await asyncio.open_connection(
+			self.device_service.ip, TCP_PORT_1)
+		
+	async def async_reconnect(self):
+		
+		try:
+			await self.async_disconnect()
+		except:
+			pass
+		try:
+			await self.async_connect()
+		except:
+			_LOGGER.error("Unable to reconnect to command socket")
+
+	async def async_disconnect(self):
+		self.command_writer.close()
+		await self.command_writer.wait_closed()	
+
+	async def async_send_command(self, cmd):
+			
+			if not self.block_sending:
+				try:
+					self.command_writer.write(cmd)
+					await self.command_writer.drain()
+					_LOGGER.debug("Command : %s", ", ".join([hex(byte) for byte in cmd]))
+				except:
+					await self.async_reconnect()
+					self.command_writer.write(cmd)
+					await self.command_writer.drain()
+			else:
+				_LOGGER.debug("Blocked")
+				asyncio.sleep (50.0 / 1000.0)
+
 
 	def send_command_2(self, cmd):
 		if not self.block_sending:
@@ -426,11 +477,11 @@ class CommandService():
 			s.connect((self.device_service.ip, TCP_PORT_2))
 			s.send(cmd)
 			s.close()
-			self.data_logger.debug("%s", ", ".join([hex(byte) for byte in cmd]))
+			_LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
 		else:
 			# Wait on this thread or get a segmentation fault!
 			time.sleep (50.0 / 1000.0);
-			# self.data_logger.debug("%s", ", ".join([hex(byte) for byte in cmd]))
+			# _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
 
 	def send_command_w(self, cmd):
 		self.send_command(cmd)
@@ -438,23 +489,35 @@ class CommandService():
 	def power_on(self):
 		self.send_command(CMD_POWER_ON)
 
+	async def async_power_on(self):
+		await self.async_send_command(CMD_POWER_ON)
+
 	def power_off(self):
 		self.send_command(CMD_POWER_OFF)
 
-	def toggle_power(self):
+	async def async_power_off(self):
+		await self.async_send_command(CMD_POWER_OFF)
+
+	async def async_toggle_power(self):
 		if self.initialized:
 			if self.state_service.power:
-				self.power_off()
+				await self.async_power_off()
 				self.state_service.update_power(False)
 			else:
-				self.power_on()
+				await self.async_power_on()
 				self.state_service.update_power(True)
 
 	def hdmiout_on(self):
 		self.send_command(CMD_HDMIOUT_ON)
 
+	async def async_hdmiout_on(self):
+		await self.async_send_command(CMD_HDMIOUT_ON)
+
 	def hdmiout_off(self):
 		self.send_command(CMD_HDMIOUT_OFF)
+
+	async def async_hdmiout_off(self):
+		await self.async_send_command(CMD_HDMIOUT_OFF)
 
 	def toggle_hdmiout(self):
 		if self.initialized:
@@ -465,29 +528,69 @@ class CommandService():
 				self.hdmiout_on()
 				self.state_service.update_hdmiout(True)
 
+	async def async_toggle_hdmiout(self):
+		if self.initialized:
+			if self.state_service.hdmiout:
+				await self.async_hdmiout_off()
+				self.state_service.update_hdmiout(False)
+			else:
+				await self.async_hdmiout_on()
+				self.state_service.update_hdmiout(True)
+
+
 	def set_volume(self, vol):
 		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, LIMIT_VOLUME), 0x00])
 		self.send_command(cmd)
 		self.state_service.update_volume(vol)
+
+	async def async_set_volume(self, vol):
+		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, LIMIT_VOLUME), 0x00])
+		await self.async_send_command(cmd)
+		self.state_service.update_volume(vol)
+
 
 	def volume_up(self):
 		target_volume = self.state_service.volume + self.scroll_step_volume
 		if target_volume <= MAX_VOLUME:
 			self.set_volume(None, target_volume)
 
+	async def async_volume_up(self):
+		target_volume = self.state_service.volume + self.scroll_step_volume
+		if target_volume <= MAX_VOLUME:
+			await self.async_set_volume(target_volume)
+
+
 	def volume_down(self):
 		target_volume = self.state_service.volume - self.scroll_step_volume
 		if target_volume >= MIN_VOLUME:
 			self.set_volume(None, target_volume)
+
+	async def async_volume_down(self):
+		target_volume = self.state_service.volume - self.scroll_step_volume
+		if target_volume >= MIN_VOLUME:
+			await self.async_set_volume(target_volume)
+
 
 	def mute(self):
 		if self.initialized:
 			self.send_command(CMD_MUTE)
 			self.state_service.update_muted(True)
 
+	async def async_mute(self):
+		if self.initialized:
+			await self.async_send_command(CMD_MUTE)
+			self.state_service.update_muted(True)
+
+
 	def unmute(self):
 		if self.initialized:
 			self.send_command(CMD_UNMUTE)
+			self.state_service.update_muted(False)
+
+
+	async def async_unmute(self):
+		if self.initialized:
+			await self.async_send_command(CMD_UNMUTE)
 			self.state_service.update_muted(False)
 
 	def select_source(self, source):
@@ -495,30 +598,45 @@ class CommandService():
 			self.state_service.update_source(source)
 			self.send_command(CMD_SOURCE_MAP[source])
 
-	def source_up(self):
+	async def async_select_source(self, source):
+		_LOGGER.debug("Select Source %s", source)
+		if self.initialized and self.state_service.source != source:
+			self.state_service.update_source(source)
+			await self.async_send_command(CMD_SOURCE_MAP[source])
+				
+	async def async_source_up(self):
+		_LOGGER.debug("Source Up")
 		for i in range(len(SOURCE_NAMES)):
 			if self.state_service.source == SOURCE_NAMES[i]:
 				if i < len(SOURCE_NAMES) - 1:
-					self.select_source(SOURCE_NAMES[i + 1])
+					await self.async_select_source(SOURCE_NAMES[i + 1])
 					return
 				else:
-					self.select_source(SOURCE_NAMES[0])
+					await self.async_select_source(SOURCE_NAMES[0])
 					return
 
-	def source_down(self):
+	async def async_source_down(self):
+		_LOGGER.debug("Source Down")
 		for i in range(len(SOURCE_NAMES)):
 			if self.state_service.source == SOURCE_NAMES[i]:
 				if i > 0:
-					self.select_source(SOURCE_NAMES[i - 1])
+					await self.async_select_source(SOURCE_NAMES[i - 1])
 					return
 				else:
-					self.select_source(SOURCE_NAMES[len(SOURCE_NAMES) - 1])
+					await self.async_select_source(SOURCE_NAMES[len(SOURCE_NAMES) - 1])
 					return
 
 	def select_sound_field(self, sound_field):
 		if self.initialized and self.state_service.sound_field != sound_field:
 			self.state_service.update_sound_field(sound_field)
 			self.send_command(CMD_SOUND_FIELD_MAP[sound_field])
+
+
+	async def async_select_sound_field(self, sound_field):
+		if self.initialized and self.state_service.sound_field != sound_field:
+			self.state_service.update_sound_field(sound_field)
+			self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
+
 
 	def set_fmtuner(self, fmtuner):
 		self.send_command(CMD_FMTUNER[fmtuner])
@@ -536,20 +654,15 @@ class CommandService():
 			self.send_command(CMD_FMTUNER_PRESET_DOWN)
 
 
-class ScanPort(threading.Thread):
+async def ScanPort(self, ip = None):
 
-	ip = None
-	result = -1
+	self.ip = ip
 
-	def __init__(self, ip):
-		threading.Thread.__init__(self)
-		self.ip = ip
-
-	def run(self):
-		_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		_socket.settimeout(3)
-		self.result = _socket.connect_ex((self.ip, TCP_PORT_1))
-		_socket.close()
+	_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	_socket.settimeout(3)
+	self.result = _socket.connect_ex((self.ip, TCP_PORT_1))
+	_socket.close()
+	return self.result
 
 
 class DeviceService():
@@ -565,62 +678,65 @@ class DeviceService():
 	def __init__(self):
 		self.my_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
 		self.my_network = self.my_ip.rsplit(".", 1)[0]
-		self.logger.debug("Network: %s IP: %s" %(self.my_network, self.my_ip))
+		_LOGGER.debug("Network: %s IP: %s" %(self.my_network, self.my_ip))
 
-	def find_device(self):
-		self.ip = "192.168.3.42"
-#        self.logger.debug("Searching for devices in %s.*" %(self.my_network))
-#        threads = []
-#        for last_octet in range(1, 254):
-#            device_ip = "%s.%s" %(self.my_network, last_octet)
-#            thread = ScanPort(device_ip)
-#            thread.start()
-#            threads.append(thread)
-
-#        for last_octet in range(1, 254):
-#            threads[last_octet - 1].join()
-#            if threads[last_octet - 1].result == 0:
-#                self.ip = threads[last_octet - 1].ip
-#                self.logger.info("Detected device on %s:%d" %(self.ip, TCP_PORT_1))
-
-#       if self.ip == None:
-#            self.logger.error("No device found in the local network!")
+	async def find_device(self):
+# 		self.ip = "192.168.3.42"
+		_LOGGER.debug("Searching for devices in %s.*" %(self.my_network))
+		port_list = []
+		for last_octet in range(1, 254):
+			device_ip = "%s.%s" %(self.my_network, last_octet)
+			port_list[last_octet-1] = await asyncio.create_task(ScanPort(device_ip))
 
 
+		for last_octet in range(1, 254):
+			if port_list[last_octet - 1] == 0:
+				self.ip = self.my_network+"." + (last_octet-1)
+				_LOGGER.info("Detected device on %s:%d" %(self.ip, TCP_PORT_1))
+				break
 
-class FeedbackWatcher(threading.Thread):
+		if self.ip == None:
+			_LOGGER.error("No device found in the local network!")
+	
+
+
+class FeedbackWatcher():
 
 	device_service = None
 	state_service = None
 	command_service = None
 	ended = False
-	socket = None
+	#socket = None
 	port = None
 
-	logger = logging.getLogger("feed")
-	data_logger = logging.getLogger("recv")
+	logger = logging.getLogger("sonyavr.feed")
+	data_logger = logging.getLogger("sonyavr.recv")
 
-	def __init__(self, sony_av_indicator, device_service, state_service, command_service, port):
-		threading.Thread.__init__(self)
-		self.sony_av_indicator = sony_av_indicator
+	def __init__(self, sony_avr, device_service, state_service, command_service, port):
+
 		self.device_service = device_service
 		self.state_service = state_service
 		self.command_service = command_service
+		self.sony_avr = sony_avr
 		self.port = port
-		self.data_logger = logging.getLogger("recv:%s"%(port))
 
-	def kill(self):
+	async def kill(self):
 		self.ended = True
-		self.socket.shutdown(socket.SHUT_WR)
+		# self.socket.shutdown(socket.SHUT_WR)
+		self.writer.close()
+		await self.writer.wait_closed()
 
 	def check_volume(self, data):
-		if FEEDBACK_VOLUME == data[:-1]:
-			vol = data[-1]
+		#if FEEDBACK_VOLUME == data[:-1]:
+		if FEEDBACK_VOLUME == data[:-2]:
+			_LOGGER.debug("Vol %s",data[7])
+			vol = data[7]
 			if vol < LIMIT_VOLUME:
 				self.state_service.update_volume(vol)
 			else:
 				self.command_service.block_sending = False
-				self.command_service.set_volume(None, LIMIT_VOLUME)
+				# self.command_service.set_volume(LIMIT_VOLUME)
+				# self.command_service.set_volume(None, LIMIT_VOLUME)
 				self.command_service.block_sending = True
 			return True
 		return False
@@ -628,15 +744,18 @@ class FeedbackWatcher(threading.Thread):
 	def check_source(self, data):
 		source_switched = False
 		for source, source_feedback in FEEDBACK_SOURCE_MAP.items():
-			if source_feedback == data[:-2]:
-				self.sony_av_indicator.update_source(source)
+			if source_feedback[0][:6] == data[:6]:
+				self.state_service.update_source(source)
 				# The command also contains the power and muted states
-				if FEEDBACK_POWER_OFF == data[-2]:
+				if source_feedback[3] == data[-3:]:
+					#FEEDBACK_POWER_OFF
 					self.state_service.update_power(False, True)
-				elif FEEDBACK_MUTE_OFF == data[-2]:
+				elif source_feedback[1] == data[-3:]:
+					# FEEDBACK_POWER_ON_MUTE_OFF
 					self.state_service.update_power(True, True)
 					self.state_service.update_muted(False)
-				elif FEEDBACK_MUTE_ON == data[-2]:
+				elif source_feedback[2] == data[-3:]:
+					# FEEDBACK_POWER_ON_MUTE_ON
 					self.state_service.update_power(True, True)
 					self.state_service.update_muted(True)
 				source_switched = True
@@ -645,8 +764,9 @@ class FeedbackWatcher(threading.Thread):
 	def check_sound_field(self, data):
 		sound_field_switched = False
 		for sound_field, sound_field_feedback in FEEDBACK_SOUND_FIELD_MAP.items():
-			if sound_field_feedback == data:
-				self.sony_av_indicator.update_sound_field(sound_field)
+			if sound_field_feedback[:6] == data[:6]:
+				_LOGGER.debug("Updating Sound Field state")
+				self.state_service.update_sound_field(sound_field)
 				sound_field_switched = True
 		return sound_field_switched
 
@@ -693,7 +813,7 @@ class FeedbackWatcher(threading.Thread):
 				stereo = False
 			freq = round(((data[7] * 255 + data[8]) / 99.5) - 0.1, 1)
 			self.state_service.update_fmtuner(fmtuner, stereo, freq)
-			self.state_service.update_source("fmTuner")
+			#self.state_service.update_source("fmTuner")
 			return True
 		return False
 
@@ -715,45 +835,37 @@ class FeedbackWatcher(threading.Thread):
 			return True
 		return False
 
-	def probe_volume(self):
-		time.sleep(0.1)
-		self.command_service.send_command(CMD_VOLUME_DOWN)
-		time.sleep(0.1)
-		self.command_service.send_command(CMD_VOLUME_UP)
-
-	def probe_input(self):
-		time.sleep(0.1)
-		self.command_service.send_command(CMD_MUTE)
-		time.sleep(0.1)
-		self.command_service.send_command(CMD_UNMUTE)
-
 	def debug_data(self, data, prepend_text=""):
-		self.data_logger.debug("%s%s" %(prepend_text, binascii.hexlify(data)))
+		_LOGGER.info("Debug %s%s",prepend_text, binascii.hexlify(data,":"))
 
-	def connect(self):
-		self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		#self.socket.connect((self.device_service.ip, TCP_PORT_1))
-		#self.logger.info("Connected to %s:%d" % (self.device_service.ip, TCP_PORT_1))
-		self.socket.connect((self.device_service.ip, self.port))
-		self.socket.settimeout(60.0)
-		self.logger.info("Connected to %s:%d" % (self.device_service.ip, self.port))
+	async def connect(self):
 
-	def reconnect(self):
-		self.socket.close()
-		self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.socket.connect((self.device_service.ip, TCP_PORT_1))
-		self.socket.settimeout(60.0)
+		self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
+		
+
+	async def reconnect(self):
+
+		self.writer.close()
+		await self.writer.wait_closed()
+
+		self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
+
 		self.command_service.block_sending = False
-		self.logger.info("Reconnected")
+		_LOGGER.error("Reconnected")
 
-	def run(self):
-		self.connect()
+	async def run(self):
+
+		await self.connect()
+
 		while not self.ended:
 			try:
-				time.sleep(0.1)
-				data = self.socket.recv(BUFFER_SIZE)
+				await asyncio.sleep(0.1)
+
+				data = await self.reader.read(BUFFER_SIZE)
+				
 				# Prevent feedback loops by block sending commands
 				self.command_service.block_sending = True
+				
 				if not self.ended:
 					self.debug_data(data)
 				if not self.check_timer(data) and \
@@ -766,41 +878,54 @@ class FeedbackWatcher(threading.Thread):
 				   not self.check_auto_standby(data) and \
 				   not self.check_auto_phase_matching(data) and \
 				   not self.ended:
-					self.debug_data(data, "[unknown data packet]\n")
-			except socket.timeout as e:
-				self.logger.debug("Timeout: reconnecting...")
-				self.reconnect()
+					self.debug_data(data, "[unknown data packet]")
+				else:
+					if self.sony_avr._update_cb:
+						self.sony_avr._update_cb()
+			#except socket.timeout as e:
+			#	_LOGGER.debug("Timeout: reconnecting...")
+			#	self.reconnect()
 			except Exception as e:
-				self.logger.exception("Failed to process data: reconnecting...")
-				self.reconnect()
+				_LOGGER.exception("Failed to process data: reconnecting...")
+				await self.reconnect()
 			finally:
 				# Unblock sending commands after processing
 				self.command_service.block_sending = False
-		self.socket.close()
-		self.logger.info("Connection closed")
+		self.writer.close()
+		await self.writer.wait_closed()
+		_LOGGER.info("Connection closed")
 
 
 class SonyAVR():
 	indicator = None
 	device_service = None
-	feedback_watcher_1 = None
+	feedback_watcher = None
 	feedback_watcher_2 = None
 	command_service = None
 	initialized = False
 
-	def __init__(self, ip):
+
+	logger = logging.getLogger("Class")
+
+	def __init__(self, ip = None, name = None, model = None):
 
 
 		self.device_service = DeviceService()
 		self.state_service = StateService()
 		self.command_service = CommandService(self.device_service, self.state_service)
-		#self.feedback_watcher_1 = FeedbackWatcher(self, self.device_service, self.state_service, self.command_service, TCP_PORT_1)
+		self.feedback_watcher = FeedbackWatcher(self, self.device_service, self.state_service, self.command_service, TCP_PORT_1)
 		#self.feedback_watcher_2 = FeedbackWatcher(self, self.device_service, self.state_service, self.command_service, TCP_PORT_2)
 
-		self.initialize_device()
+		self.initialize_device()	
+		
 		self.device_service.ip = ip
-		self.name = "Device Name"
-		self.model = "AVR Model"
+		self.name = name
+		self.model = model
+		self._update_cb = None
+
+		self.volume_min = MIN_VOLUME
+		self.volume_max = MAX_VOLUME
+		self.volume_range = VOLUME_RANGE
 
 		#if self.feedback_watcher_1 != None:
 		#    self.feedback_watcher_1.start()
@@ -812,22 +937,37 @@ class SonyAVR():
 		#self.feedback_watcher_1.probe_volume()
 		#self.feedback_watcher_1.probe_input()
 
-	def quit(self):
+	async def quit(self):
 		self.set_initialized(False)
-		#if self.feedback_watcher_1 != None:
-		#    self.feedback_watcher_1.kill()
+		if self.feedback_watcher != None:
+			self.feedback_watcher.kill()
 		#    self.feedback_watcher_1.join(8)
 		#if self.feedback_watcher_2 != None:
 		#    self.feedback_watcher_2.kill()
 		#    self.feedback_watcher_2.join(8)
 
 	def initialize_device(self):
-		self.device_service.find_device()
+		#self.device_service.find_device()
 		self.device_service.initialized = True
 
 	def poll_state(self):
 		self.command_service.mute(None)
 		self.command_service.unmute(None)
+		
+
+	async def async_poll_state(self):
+		await self.command_service.async_mute()
+		await asyncio.sleep(0.1)
+		await self.command_service.async_unmute()
+		await asyncio.sleep(0.1)
+		await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+		await asyncio.sleep(0.1)
+		await self.command_service.async_send_command(CMD_VOLUME_UP)
+		await asyncio.sleep(0.1)
+		await self.command_service.async_source_up()
+		await asyncio.sleep(0.1)
+		await self.command_service.async_source_down()
+		
 
 	def set_initialized(self, initialized):
 		self.initialized = initialized
@@ -837,12 +977,121 @@ class SonyAVR():
 
 	async def async_turn_on(self) -> None:
 		#await self._device.async_turn_on()
-		self.command_service.power_on()
+		await self.command_service.async_power_on()
 
 	async def async_turn_off(self) -> None:
+		await self.command_service.async_power_off()
+
+	async def async_volume_up(self) -> None:
+		await self.command_service.async_volume_up()
+
+	async def async_volume_down(self) -> None:
+		await self.command_service.async_volume_down()
+
+	async def async_volume_set(self, _vol) -> None:
+		await self.command_service.async_set_volume(_vol)
+	
+
+	async def async_set_mute(self, mute) -> None:
 		#await self._device.async_turn_on()
-		self.command_service.power_off()
+		if mute:
+			await self.command_service.async_mute()
+		else:
+			await self.command_service.async_unmute()
+
+	async def async_send_command(self, command, value):
+
+		# await self.command_service.async_connect()
+
+		match command:
+			case "Power On":
+				await self.command_service.async_send_command(CMD_POWER_ON)
+			case "Power Off":
+				await self.command_service.async_send_command(CMD_POWER_OFF)
+			case "Mute":
+				await self.command_service.async_send_command(CMD_MUTE)
+			case "UnMute":
+				await self.command_service.async_send_command(CMD_UNMUTE)
+			case "Volume Up":
+				await self.command_service.async_send_command(CMD_VOLUME_UP)
+			case "Volume Down":
+				await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+			case "Source Up":
+				await self.command_service.async_source_up()
+			case "Source Down":
+				await self.command_service.async_source_down()
+			case "Set Sound Field":
+				if value is None:
+					_LOGGER.error("You must specific a sound field")
+					return
+				await self.async_set_mode(value)
+			case "Set Source":
+				if value is None:
+					_LOGGER.error("You must specific a source")
+					return
+				if value not in SOURCE_MENU_MAP.values():
+					_LOGGER.error('Sound field "%s" is not a valid sound field' % value)
+					return
+				await self.async_set_source(value)
+			case "Set Volume":
+				await self.async_volume_set(int(value))
 
 	def set_update_cb(self, cb):
 		self._update_cb = cb
+
+	async def async_update_status(self):
+		await self.async_poll_state()
+		
 	
+	async def run_notifier(self):
+		_LOGGER.debug("Setting up Sony AVR Notify Listener")
+		await self.feedback_watcher.run()
+
+	@property
+	def sources(self):
+		return tuple(SOURCE_MENU_MAP.values())
+	
+	@property
+	def source(self):
+		if self.state_service.source:
+			return SOURCE_MENU_MAP[self.state_service.source]
+		else:
+			return ""
+
+	@property
+	def mode(self):
+		if self.state_service.sound_field:
+			return SOUND_FIELD_MENU_MAP[self.state_service.sound_field]
+		else:
+			return ""
+		
+	@property
+	def modes(self):
+		return tuple(SOUND_FIELD_MENU_MAP.values())
+
+
+	@property
+	def volume(self):
+		return self.state_service.volume
+	
+	@property
+	def mute(self):
+		return self.state_service.muted
+	
+	async def async_set_source(self, source):
+		if source not in SOURCE_MENU_MAP.values():
+			_LOGGER.error('Source "%s" is not a valid input' % source)
+			return
+
+		for key,value in SOURCE_MENU_MAP.items():
+			if source == value:
+				await self.command_service.async_select_source(key)
+
+	async def async_set_mode(self, source):
+		if source not in SOUND_FIELD_MENU_MAP.values():
+			_LOGGER.error('Sound field "%s" is not a valid sound field' % source)
+			return
+
+		for key,value in SOUND_FIELD_MENU_MAP.items():
+			if source == value:
+				await self.command_service.async_select_sound_field(key)

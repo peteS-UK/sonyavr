@@ -2,18 +2,17 @@
   "title": "Sony AVR",
     "config": {
       "error": {
-        "data": "For manual config, you must enter the IP address of the AVR",
-        "select": "You must either discover or enter details manually"
+        "data": "You must enter the IP address, Name and model of the AVR"
       },
       "step": {
         "user": {
           "data": {
-            "discover": "Search for AVR during setup",
-            "manual": "Enter details manually below",
-            "host": "IP Address of the AVR"
+            "host": "IP Address of the Sony AVR",
+            "name":"Name of the AVR",
+            "model":"Model of the AVR"
           },
-          "description": "Enter the details for your AVR.  You can ask the setup to discover AVRs, and/or enter details manually for an AVR",
-          "title": "Emotiva Processor"
+          "description": "Enter the details for your AVR.",
+          "title": "Sony AVR"
         }
       }
     }
