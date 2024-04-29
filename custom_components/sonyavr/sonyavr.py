@@ -982,6 +982,13 @@ class SonyAVR():
 	async def async_turn_off(self) -> None:
 		await self.command_service.async_power_off()
 
+	async def async_mute_on(self) -> None:
+		#await self._device.async_turn_on()
+		await self.command_service.async_mute()
+
+	async def async_mute_off(self) -> None:
+		await self.command_service.async_unmute()
+
 	async def async_volume_up(self) -> None:
 		await self.command_service.async_volume_up()
 

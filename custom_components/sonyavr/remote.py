@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import logging
-import asyncio
 
 from collections.abc import Iterable
 from typing import Any
 
 from .const import DOMAIN
 
-from .emotiva import SonyAVR
+from .sonyavr import SonyAVR
 
 import voluptuous as vol
 
@@ -23,7 +22,7 @@ from homeassistant.components.remote import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
 	config_validation as cv,
@@ -38,12 +37,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 from .const import (
-	CONF_NOTIFICATIONS,
-	CONF_NOTIFY_PORT,
-	CONF_CTRL_PORT,
-	CONF_PROTO_VER,
-	CONF_DISCOVER,
-	CONF_MANUAL,
 	DEFAULT_NAME
 )
 
@@ -59,56 +52,42 @@ async def async_setup_entry(
 	if config_entry.options:
 		config.update(config_entry.options)
 
-	receivers = []
+	sonyavr = SonyAVR(config[CONF_HOST], config[CONF_NAME], config[CONF_MODEL])
 
-	if config[CONF_DISCOVER]:
-		receivers = await hass.async_add_executor_job(SonyAVR.discover,3)
-		_configdiscovered = False
-		for receiver in receivers:
-
-			_ip, _xml = receiver
-				
-			emotiva = SonyAVR(_ip, _xml)
-			_LOGGER.debug("Adding %s from discovery", _ip)
-			async_add_entities([EmotivaDevice(emotiva, hass)])
-
-	if config[CONF_MANUAL] and not any([config[CONF_HOST] in tup for tup in receivers]):
-		_LOGGER.debug("Adding %s:%s from config", config[CONF_HOST]
-				, config[CONF_NAME])
-
-		emotiva = SonyAVR(config[CONF_HOST], transp_xml = "", 
-					_ctrl_port = config[CONF_CTRL_PORT], _notify_port = config[CONF_NOTIFY_PORT],
-					_proto_ver = config[CONF_PROTO_VER], _name = config[CONF_NAME])
-
-		async_add_entities([EmotivaDevice(emotiva, hass)])
+	async_add_entities([SonyAVRDevice(sonyavr, hass)])
 
 	
 
-class EmotivaDevice(RemoteEntity):
-	# Representation of a Emotiva Processor
+class SonyAVRDevice(RemoteEntity):
+	# Representation of a Sony AVR
 
 	def __init__(self, device, hass):
 
 		self._device = device
 		self._hass = hass
-		self._entity_id = "remote.emotivaprocessor"
-		self._unique_id = "emotiva_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
-
-	async def async_added_to_hass(self):
-		"""Handle being added to hass."""
-		await super().async_added_to_hass()
+		self._entity_id = "remote.sonyavr"
+		self._unique_id = "sonyavr_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
 		
+	async def async_added_to_hass(self):
+		"""Subscribe to device events."""
+		await super().async_added_to_hass()		
+		await self._device.command_service.async_connect()
+
 
 	async def async_will_remove_from_hass(self) -> None:
-		pass
+  
+		await self._device.command_service.async_disconnect()
 
-#	@property
-#	def icon(self):
-#		return "mdi:audio-video"
+
+	should_poll = False
+
+	@property
+	def should_poll(self):
+		return False
+
 
 	@property
 	def name(self):
-		# return self._device.name
 		return "Remote"
 
 	@property
@@ -124,14 +103,8 @@ class EmotivaDevice(RemoteEntity):
 				(DOMAIN, self._unique_id)
 			},
 			name=self._device.name,
-			manufacturer='Emotiva',
+			manufacturer='Sony',
 			model=self._device.model)
-
-	should_poll = False
-
-	@property
-	def should_poll(self):
-		return False
 
 	@property
 	def unique_id(self):
@@ -146,23 +119,14 @@ class EmotivaDevice(RemoteEntity):
 		self._entity_id = entity_id
 
 	async def async_turn_off(self) -> None:
-		await self._device.async_send_command_no_ack("power_off","0")
+		await self._device.async_turn_off()
 
 	async def async_turn_on(self) -> None:
-		await self._device.async_send_command_no_ack("power_on","0")
+		await self._device.async_turn_on()
 
-	async def async_send_command(self, command: Iterable[str], **kwargs: Any) -> None:
-		#await self._device.async_send_command(Command,Value)
-		try:
-			emo_Command = command[0].replace(" ","").split(",")[0]
-			Value = command[0].replace(" ","").split(",")[1]
-			if len(emo_Command) == 0 or len(Value) == 0:
-				_LOGGER.error("Invalid remote command format.  Must be command,value")
-				return False
-			else:
-				await self._device.async_send_command_no_ack(emo_Command,Value)
-		except:
-			_LOGGER.error("Invalid remote command format.  Must be command,value")
-			return False
-		
+	async def async_mute_on(self) -> None:
+		await self._device.async_mute_on()
+
+	async def async_mute_off(self) -> None:
+		await self._device.async_mute_off()
 

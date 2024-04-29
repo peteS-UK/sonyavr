@@ -34,8 +34,6 @@ from homeassistant.helpers.device_registry import DeviceInfo
 _LOGGER = logging.getLogger(__name__)
 
 from .const import (
-	CONF_DISCOVER,
-	CONF_MANUAL,
 	SERVICE_SEND_COMMAND,
 	DEFAULT_NAME
 )
@@ -65,8 +63,6 @@ async def async_setup_entry(
 ) -> None:
 
 	config = hass.data[DOMAIN][config_entry.entry_id]
-
-	_LOGGER.debug("Host from config %s", config[CONF_HOST])
 
 	if config_entry.options:
 		config.update(config_entry.options)

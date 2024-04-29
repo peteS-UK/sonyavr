@@ -9,8 +9,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-#PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE]
-PLATFORMS = [Platform.MEDIA_PLAYER]
+PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE]
+#PLATFORMS = [Platform.MEDIA_PLAYER]
 
 
 async def async_setup_entry(
