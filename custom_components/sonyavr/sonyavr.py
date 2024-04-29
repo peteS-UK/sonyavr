@@ -1,6 +1,7 @@
 
 __author__ = "andreasschaeffer"
 __author__ = "michaelkapuscik"
+__author__ = "petersketch"
 
 import socket
 import time
@@ -456,7 +457,6 @@ class CommandService():
 		await self.command_writer.wait_closed()	
 
 	async def async_send_command(self, cmd):
-			
 			if not self.block_sending:
 				try:
 					self.command_writer.write(cmd)
@@ -635,7 +635,7 @@ class CommandService():
 	async def async_select_sound_field(self, sound_field):
 		if self.initialized and self.state_service.sound_field != sound_field:
 			self.state_service.update_sound_field(sound_field)
-			self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
+			await self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
 
 	def set_fmtuner(self, fmtuner):
