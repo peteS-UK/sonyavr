@@ -4,7 +4,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 
-This custom component implements a media player entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's tested with the STR-DN1040.  It may work with other similar generation Sony AVRs, but this is untested at present.
+This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's tested with the STR-DN1040.  It may work with other similar generation Sony AVRs, but this is untested at present.
 
 The integration is a Local Push integration - i.e. it subscribes to notification of changes to the AVR, so doesn't need to periodically poll for its state.
 
