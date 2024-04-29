@@ -45,3 +45,7 @@ The integration provides a service which allows you to send commands to the AVR.
 ### Media Player State
 
 The integration tracks the the state of the volume on the AVR and creates and maintains an attribute on the media_player.sonyavr entity.  This is the volume as displayed on the AVR, rather than the percentage volume which Home Assistant provides.
+
+## References
+
+The integration is based on work done at https://gist.github.com/IceEyz/c55d36614d58c006ad698afbb98b7099, which itself was derived from https://github.com/aschaeffer/sony-av-indicator.
