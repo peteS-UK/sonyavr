@@ -13,6 +13,9 @@ import binascii
 
 import asyncio
 
+import sys
+
+
 _LOGGER = logging.getLogger(__name__)
 
 # logging.basicConfig(level = logging.DEBUG, format = "%(asctime)-15s [%(name)-5s] [%(levelname)-5s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -438,8 +441,13 @@ class CommandService():
 
 	async def async_connect(self):
 		
-		self.command_reader, self.command_writer = await asyncio.open_connection(
-			self.device_service.ip, TCP_PORT_1)
+		try:
+			self.command_reader, self.command_writer = await asyncio.open_connection(
+				self.device_service.ip, TCP_PORT_1)
+		except IOError as e:
+			_LOGGER.critical("Cannot connect to command socket %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on command socket connection %s", sys.exc_info()[0])
 		
 	async def async_reconnect(self):
 		
@@ -449,15 +457,20 @@ class CommandService():
 			pass
 		try:
 			await self.async_connect()
+		except IOError as e:
+			_LOGGER.critical("Cannot connect to command socket %d: %s", e.errno, e.strerror)
 		except:
-			_LOGGER.error("Unable to reconnect to command socket")
+			_LOGGER.critical("Unknown error on command socket connection %s", sys.exc_info()[0])
 
 	async def async_disconnect(self):
-		self.command_writer.close()
-		await self.command_writer.wait_closed()	
+		try:
+			self.command_writer.close()
+			await self.command_writer.wait_closed()	
+		except:
+			_LOGGER.error("Cannot disconnect from command socket")
 
 	async def async_send_command(self, cmd):
-			if not self.block_sending:
+			if not self.block_sending and self.command_writer is not None:
 				try:
 					self.command_writer.write(cmd)
 					await self.command_writer.drain()
@@ -467,7 +480,10 @@ class CommandService():
 					self.command_writer.write(cmd)
 					await self.command_writer.drain()
 			else:
-				_LOGGER.debug("Blocked")
+				if self.block_sending:
+					_LOGGER.debug("Blocked")
+				if self.command_writer is None:
+					_LOGGER.critical("Command Socket doesn't exist")
 				asyncio.sleep (50.0 / 1000.0)
 
 
@@ -840,22 +856,40 @@ class FeedbackWatcher():
 
 	async def connect(self):
 
-		self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
+		try:
+			self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
+			self._connected = True
+		except IOError as e:
+			_LOGGER.critical("Cannot create feedback listener connection %d: %s", e.errno, e.strerror)
+			self._connected = False
+		except:
+			_LOGGER.critical("Unknown error on feedback listener connection %s", sys.exc_info()[0])
+			self._connected = False
 		
+		return self._connected
 
 	async def reconnect(self):
 
-		self.writer.close()
-		await self.writer.wait_closed()
+		try: 
+			self.writer.close()
+			await self.writer.wait_closed()
 
-		self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
+			self.reader, self.writer = await asyncio.open_connection(self.device_service.ip, TCP_PORT_1)
 
-		self.command_service.block_sending = False
-		_LOGGER.error("Reconnected")
+			self.command_service.block_sending = False
+			_LOGGER.error("Reconnected")
+		except IOError as e:
+			_LOGGER.critical("Cannot create feedback listener re-connection %d: %s", e.errno, e.strerror)
+			self.ended = True
+		except:
+			_LOGGER.critical("Unknown error on feedback listener re-connection %s", sys.exc_info()[0])
+			self.ended = True
+
 
 	async def run(self):
 
-		await self.connect()
+		if await self.connect() != True:
+			return
 
 		while not self.ended:
 			try:
@@ -891,9 +925,12 @@ class FeedbackWatcher():
 			finally:
 				# Unblock sending commands after processing
 				self.command_service.block_sending = False
-		self.writer.close()
-		await self.writer.wait_closed()
-		_LOGGER.info("Connection closed")
+		try:
+			self.writer.close()
+			await self.writer.wait_closed()
+			_LOGGER.info("Connection closed")
+		except:
+			_LOGGER.error("Cannot close feedback listener connection")
 
 
 class SonyAVR():
