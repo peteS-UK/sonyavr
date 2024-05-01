@@ -28,17 +28,20 @@ This will display the configuration page.
 ### Manual Entry
 You need to enter the details of your processor manually - IP address, name and model.
 
-When you select Submit, the configuration will setup the components in Home Assistant.  It will create one device, one entity and a service.
+When you select Submit, the configuration will setup the components in Home Assistant.  It will create one device, two entities and a service.
 
 ## Device & Entities
 A device will be created with the name given during setup..
 
-
 ### Media Player entity
 A media player entity will be created with a default entity_id of media_player.sonyavr.  
 
-
 You can control power state, volume, muting, source and sound mode from the media player.  You can also use this entity from any card for media player.
+
+### Remote entity
+A remote entity will be created with a default entity_id of remote.sonyavr.
+
+This entity only supports power on and off, and mute on and off functions.  It doesn't support sending commands directly, since the actual commands for the AVR are just byte strings.  Please use the Send Command service below.
 
 ## Sony AVR. Send Command
 
