@@ -20,7 +20,7 @@ from homeassistant.components.media_player import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL, EVENT_HOMEASSISTANT_START
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
 	config_validation as cv,
@@ -30,6 +30,7 @@ from homeassistant.helpers import (
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.start import async_at_start
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,12 +99,9 @@ class SonyAVRDevice(MediaPlayerEntity):
 		self._device_class = "receiver"
 		self._notifier_task = None
 		
-	async def async_added_to_hass(self):
-		"""Subscribe to device events."""
-		self._device.set_update_cb(self.async_update_callback)
 
-		self._notifier_task = asyncio.create_task(self._device.run_notifier())
-		
+	async def _async_startup(self, loop):
+		self._notifier_task = self._hass.async_create_task(self._device.run_notifier())
 		await self._device.command_service.async_connect()
 
 		# Turn on and off to force the feedback
@@ -112,6 +110,19 @@ class SonyAVRDevice(MediaPlayerEntity):
 		await self._device.async_update_status()
 		await asyncio.sleep(1)
 		await self._device.async_turn_off()
+
+	async def async_added_to_hass(self):
+		"""Subscribe to device events."""
+		self._device.set_update_cb(self.async_update_callback)
+
+		async_at_start(self._hass,  self._async_startup)
+
+		# self._config_entry.async_on_unload(async_at_start(self._hass,  self._async_startup))
+  		
+
+		# self._notifier_task = asyncio.create_task(self._device.run_notifier())
+		
+
 
 	def async_update_callback(self, reason = False):
 		"""Update the device's state."""
