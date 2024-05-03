@@ -885,6 +885,14 @@ class FeedbackWatcher():
 			_LOGGER.critical("Unknown error on feedback listener re-connection %s", sys.exc_info()[0])
 			self.ended = True
 
+	async def stop(self):
+		try: 
+			self.writer.close()
+			await self.writer.wait_closed()
+		except IOError as e:
+			_LOGGER.critical("Cannot close feedback listener %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on listener close %s", sys.exc_info()[0])
 
 	async def run(self):
 
@@ -916,6 +924,8 @@ class FeedbackWatcher():
 				else:
 					if self.sony_avr._update_cb:
 						self.sony_avr._update_cb()
+					if self.sony_avr._remote_update_cb:
+						self.sony_avr._remote_update_cb()
 			#except socket.timeout as e:
 			#	_LOGGER.debug("Timeout: reconnecting...")
 			#	self.reconnect()
@@ -959,6 +969,7 @@ class SonyAVR():
 		self.name = name
 		self.model = model
 		self._update_cb = None
+		self._remote_update_cb = None
 
 		self.volume_min = MIN_VOLUME
 		self.volume_max = MAX_VOLUME
@@ -1083,6 +1094,9 @@ class SonyAVR():
 	def set_update_cb(self, cb):
 		self._update_cb = cb
 
+	def set_remote_update_cb(self,cb):
+		self._remote_update_cb = cb
+
 	async def async_update_status(self):
 		await self.async_poll_state()
 		
@@ -1090,6 +1104,10 @@ class SonyAVR():
 	async def run_notifier(self):
 		_LOGGER.debug("Setting up Sony AVR Notify Listener")
 		await self.feedback_watcher.run()
+
+	async def stop_notifier(self):
+		_LOGGER.debug("Setting up Sony AVR Notify Listener")
+		await self.feedback_watcher.stop()
 
 	@property
 	def sources(self):

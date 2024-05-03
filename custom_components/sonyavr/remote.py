@@ -52,7 +52,7 @@ async def async_setup_entry(
 	if config_entry.options:
 		config.update(config_entry.options)
 
-	sonyavr = SonyAVR(config[CONF_HOST], config[CONF_NAME], config[CONF_MODEL])
+	sonyavr = config["sonyavr"]
 
 	async_add_entities([SonyAVRDevice(sonyavr, hass)])
 
@@ -71,12 +71,20 @@ class SonyAVRDevice(RemoteEntity):
 	async def async_added_to_hass(self):
 		"""Subscribe to device events."""
 		await super().async_added_to_hass()		
-		await self._device.command_service.async_connect()
+		#await self._device.command_service.async_connect()
+		self._device.set_remote_update_cb(self.async_update_callback)
+
+
+
+	def async_update_callback(self, reason = False):
+		"""Update the device's state."""
+		self.async_schedule_update_ha_state()
 
 
 	async def async_will_remove_from_hass(self) -> None:
   
-		await self._device.command_service.async_disconnect()
+		self._device.set_remote_update_cb(None)
+		# await self._device.command_service.async_disconnect()
 
 
 	should_poll = False
@@ -84,7 +92,6 @@ class SonyAVRDevice(RemoteEntity):
 	@property
 	def should_poll(self):
 		return False
-
 
 	@property
 	def name(self):
@@ -129,4 +136,30 @@ class SonyAVRDevice(RemoteEntity):
 
 	async def async_mute_off(self) -> None:
 		await self._device.async_mute_off()
+
+	async def async_update(self):
+		pass
+
+	@property
+	def state(self):
+			if self._device.state_service.power == False:
+				return "off"
+			elif self._device.state_service.power == True:
+				return "on"
+			else:
+				return None
+
+	@property
+	def is_volume_muted(self):
+		return self._device.mute
+	
+	@property
+	def volume_level(self):
+		if (self._device.volume is None):
+		#	# device is muted
+			return 0.0
+		else:
+			return float("%.2f" % ((self._device.volume-self._device.volume_min)/self._device.volume_range))
+		
+
 

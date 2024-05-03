@@ -68,9 +68,7 @@ async def async_setup_entry(
 	if config_entry.options:
 		config.update(config_entry.options)
 
-	_LOGGER.debug("Adding %s from config", config[CONF_HOST])
-
-	sonyavr = SonyAVR(config[CONF_HOST], config[CONF_NAME], config[CONF_MODEL])
+	sonyavr = config["sonyavr"]
 
 	async_add_entities([SonyAVRDevice(sonyavr, hass)])
 
@@ -121,8 +119,6 @@ class SonyAVRDevice(MediaPlayerEntity):
   		
 
 		# self._notifier_task = asyncio.create_task(self._device.run_notifier())
-		
-
 
 	def async_update_callback(self, reason = False):
 		"""Update the device's state."""
@@ -136,6 +132,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 		await self._device.command_service.async_disconnect()
 
 		try:
+			self._device.stop_notifier()
 			self._notifier_task.cancel()
 		except:
 			pass
@@ -199,10 +196,10 @@ class SonyAVRDevice(MediaPlayerEntity):
 	def state(self) -> MediaPlayerState | None:
 			if self._device.state_service.power == False:
 				return MediaPlayerState.OFF
-			if self._device.state_service.power == True:
+			elif self._device.state_service.power == True:
 				return MediaPlayerState.ON
-
-			return None
+			else:
+				return None
 
 	@property
 	def source_list(self):
