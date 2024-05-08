@@ -7,12 +7,26 @@
       "step": {
         "user": {
           "data": {
-            "host": "IP Address of the Sony AVR",
+            "host": "IP Address of the AVR",
             "name":"Name of the AVR",
             "model":"Model of the AVR"
           },
           "description": "Enter the details for your AVR.",
           "title": "Sony AVR"
+        }
+      }
+    },
+    "options": {
+      "error": {
+        "invalid_path": ""
+      },
+      "step": {
+        "init": {
+          "title": "AVR Configuration",
+          "data": {
+            "max_volume": "Maximum Allowed Volume"
+          },
+          "description": "Configuration Options for AVR"
         }
       }
     }

@@ -6,7 +6,7 @@ from homeassistant import config_entries, core
 from homeassistant.const import Platform
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_MAX_VOLUME
 
 from .sonyavr import SonyAVR
 
@@ -32,6 +32,8 @@ async def async_setup_entry(
 
     sonyavr = SonyAVR(hass_data[CONF_HOST], hass_data[CONF_NAME], hass_data[CONF_MODEL])
 
+    _update_max_volume(sonyavr, entry.options[CONF_MAX_VOLUME])
+
     hass_data["sonyavr"] = sonyavr
 
     hass.data[DOMAIN][entry.entry_id] = hass_data
@@ -40,10 +42,20 @@ async def async_setup_entry(
 
     return True
 
+def _update_max_volume(sonyavr, value):
+    try:
+        vol = int(value)
+        if (vol is not None):
+            sonyavr.volume_max = vol
+    except:
+        pass
+
 
 async def options_update_listener(
-    hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
-):
+    hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry):
+    
+    _update_max_volume(sonyavr, config_entry.options[CONF_MAX_VOLUME])
+
     """Handle options update."""
     await hass.config_entries.async_reload(config_entry.entry_id)
 

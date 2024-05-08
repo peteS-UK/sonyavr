@@ -68,7 +68,7 @@ class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=CONFIG_SCHEMA, errors=errors
         )
 
-'''
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
@@ -92,10 +92,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Optional(
-                        "notifications",
-                        default=self.config_entry.options.get("notifications"),
+                        "max_volume",
+                        default=self.config_entry.options.get("max_volume"),
                     ): cv.string
                 }
             ),
         )
-'''

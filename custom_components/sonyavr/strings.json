@@ -15,5 +15,19 @@
           "title": "Sony AVR"
         }
       }
+    },
+    "options": {
+      "error": {
+        "invalid_path": ""
+      },
+      "step": {
+        "init": {
+          "title": "AVR Configuration",
+          "data": {
+            "max_volume": "Maximum Allowed Volume"
+          },
+          "description": "Configuration Options for AVR"
+        }
+      }
     }
   }

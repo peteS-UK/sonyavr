@@ -29,8 +29,6 @@ MIN_VOLUME = 0
 LOW_VOLUME = 15
 MEDIUM_VOLUME = 30
 MAX_VOLUME = 45
-LIMIT_VOLUME = MAX_VOLUME
-VOLUME_RANGE = MAX_VOLUME-MIN_VOLUME
 
 SOURCE_NAMES = [ "bd", "dvd", "game", "satCaTV", "video1","video2","video3", "tv", "saCd", "fmTuner", "usb", "homeNetwork", "internetServices" ]
 SOUND_FIELD_NAMES = [ [ "twoChannelStereo", "analogDirect", "multiStereo", "afd" ], [ "pl2Movie", "neo6Cinema", "hdDcs" ], [ "pl2Music", "neo6Music", "concertHallA", "concertHallB", "concertHallC", "jazzClub", "liveConcert", "stadium", "sports", "portableAudio" ] ]
@@ -555,12 +553,12 @@ class CommandService():
 
 
 	def set_volume(self, vol):
-		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, LIMIT_VOLUME), 0x00])
+		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, self.state_service.volume_max), 0x00])
 		self.send_command(cmd)
 		self.state_service.update_volume(vol)
 
 	async def async_set_volume(self, vol):
-		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, LIMIT_VOLUME), 0x00])
+		cmd = bytearray([0x02, 0x06, 0xA0, 0x52, 0x00, 0x03, 0x00, min(vol, self.state_service.volume_max), 0x00])
 		await self.async_send_command(cmd)
 		self.state_service.update_volume(vol)
 
@@ -743,16 +741,15 @@ class FeedbackWatcher():
 		await self.writer.wait_closed()
 
 	def check_volume(self, data):
-		#if FEEDBACK_VOLUME == data[:-1]:
 		if FEEDBACK_VOLUME == data[:-2]:
 			_LOGGER.debug("Vol %s",data[7])
 			vol = data[7]
-			if vol < LIMIT_VOLUME:
+			if vol <= self.state_service.volume_max:
 				self.state_service.update_volume(vol)
 			else:
 				self.command_service.block_sending = False
-				# self.command_service.set_volume(LIMIT_VOLUME)
-				# self.command_service.set_volume(None, LIMIT_VOLUME)
+				self.command_service.async_set_volume(self.state_service.volume_max)
+				self.state_service.volume = self.state_service.volume_max
 				self.command_service.block_sending = True
 			return True
 		return False
@@ -971,9 +968,9 @@ class SonyAVR():
 		self._update_cb = None
 		self._remote_update_cb = None
 
-		self.volume_min = MIN_VOLUME
-		self.volume_max = MAX_VOLUME
-		self.volume_range = VOLUME_RANGE
+		self.state_service.volume_min = MIN_VOLUME
+		self.state_service.volume_max = MAX_VOLUME
+		self.state_service.volume_range = self.state_service.volume_max - self.state_service.volume_min
 
 		#if self.feedback_watcher_1 != None:
 		#    self.feedback_watcher_1.start()
@@ -1136,6 +1133,25 @@ class SonyAVR():
 	def volume(self):
 		return self.state_service.volume
 	
+	@property
+	def volume_min(self):
+		return self.state_service.volume_min
+	
+	@property
+	def volume_max(self):
+		return self.state_service.volume_max
+	
+	@volume_max.setter
+	def volume_max(self, value):
+		self.state_service.volume_max = value
+		self.state_service.volume_range = self.state_service.volume_max - self.state_service.volume_min
+		_LOGGER.debug("Set Max Volume: %d and Volume Range: %d", value, self.state_service.volume_range)
+	
+
+	@property
+	def volume_range(self):
+		return self.state_service.volume_range
+
 	@property
 	def mute(self):
 		return self.state_service.muted
