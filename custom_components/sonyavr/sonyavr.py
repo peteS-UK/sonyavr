@@ -746,7 +746,7 @@ class FeedbackWatcher():
 			vol = data[7]
 			if vol <= self.state_service.volume_max:
 				self.state_service.update_volume(vol)
-			else:
+			elif vol == self.state_service.volume_max+1 :
 				self.command_service.block_sending = False
 				self.command_service.async_set_volume(self.state_service.volume_max)
 				self.state_service.volume = self.state_service.volume_max
