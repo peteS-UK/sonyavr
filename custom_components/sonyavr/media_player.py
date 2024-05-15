@@ -104,7 +104,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 
 		# Turn on and off to force the feedback
 		await self._device.async_turn_on()
-		await asyncio.sleep(30)
+		await asyncio.sleep(20)
 		await self._device.async_update_status()
 		await asyncio.sleep(10)
 		await self._device.async_turn_off()

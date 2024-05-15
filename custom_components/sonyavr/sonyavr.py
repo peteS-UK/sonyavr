@@ -1002,15 +1002,15 @@ class SonyAVR():
 
 	async def async_poll_state(self):
 		await self.command_service.async_mute()
-		await asyncio.sleep(0.1)
+		await asyncio.sleep(1.0)
 		await self.command_service.async_unmute()
-		await asyncio.sleep(0.1)
+		await asyncio.sleep(1.0)
 		await self.command_service.async_send_command(CMD_VOLUME_DOWN)
-		await asyncio.sleep(0.1)
+		await asyncio.sleep(1.0)
 		await self.command_service.async_send_command(CMD_VOLUME_UP)
-		await asyncio.sleep(0.1)
+		await asyncio.sleep(1.0)
 		await self.command_service.async_source_up()
-		await asyncio.sleep(0.1)
+		await asyncio.sleep(1.0)
 		await self.command_service.async_source_down()
 		
 
