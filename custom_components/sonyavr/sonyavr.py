@@ -482,7 +482,7 @@ class CommandService():
 					_LOGGER.debug("Blocked")
 				if self.command_writer is None:
 					_LOGGER.critical("Command Socket doesn't exist")
-				asyncio.sleep (50.0 / 1000.0)
+				await asyncio.sleep (50.0 / 1000.0)
 
 
 	def send_command_2(self, cmd):
