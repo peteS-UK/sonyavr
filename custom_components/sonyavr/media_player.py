@@ -132,7 +132,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 		await self._device.command_service.async_disconnect()
 
 		try:
-			self._device.stop_notifier()
+			await self._device.stop_notifier()
 			self._notifier_task.cancel()
 		except:
 			pass

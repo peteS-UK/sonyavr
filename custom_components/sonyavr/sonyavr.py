@@ -28,7 +28,8 @@ BUFFER_SIZE = 1024
 MIN_VOLUME = 0
 LOW_VOLUME = 15
 MEDIUM_VOLUME = 30
-MAX_VOLUME = 45
+
+from .const import MAX_VOLUME
 
 SOURCE_NAMES = [ "bd", "dvd", "game", "satCaTV", "video1","video2","video3", "tv", "saCd", "fmTuner", "usb", "homeNetwork", "internetServices" ]
 SOUND_FIELD_NAMES = [ [ "twoChannelStereo", "analogDirect", "multiStereo", "afd" ], [ "pl2Movie", "neo6Cinema", "hdDcs" ], [ "pl2Music", "neo6Music", "concertHallA", "concertHallB", "concertHallC", "jazzClub", "liveConcert", "stadium", "sports", "portableAudio" ] ]
