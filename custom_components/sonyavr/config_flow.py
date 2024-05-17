@@ -6,7 +6,7 @@ import voluptuous as vol
 
 from .const import DOMAIN, CONF_DISCOVER, CONF_MANUAL
 
-from homeassistant import config_entries, core,  exceptions
+from homeassistant import config_entries, core, exceptions
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -20,14 +20,17 @@ from homeassistant.helpers.entity_registry import (
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = vol.Schema(
-    {vol.Required(CONF_HOST): cv.string,
-     vol.Required(CONF_NAME): cv.string,
-     vol.Required(CONF_MODEL): cv.string
-}
+    {
+        vol.Required(CONF_HOST): cv.string,
+        vol.Required(CONF_NAME): cv.string,
+        vol.Required(CONF_MODEL): cv.string,
+    }
 )
+
 
 class SelectError(exceptions.HomeAssistantError):
     """Error"""
+
     pass
 
 
@@ -42,15 +45,16 @@ async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
     if "model" not in data.keys():
         data["model"] = ""
 
-    if ((len(data["host"]) <3) or (len(data["name"]) < 1) or (len(data["model"]) <1)):
+    if (len(data["host"]) < 3) or (len(data["name"]) < 1) or (len(data["model"]) < 1):
         # Manual entry requires host and name
-        raise ValueError    
+        raise ValueError
+
 
 class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
-    async def async_step_user(self, user_input = None):
+    async def async_step_user(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
         errors: Dict[str, str] = {}
         if user_input is not None:
@@ -68,21 +72,19 @@ class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=CONFIG_SCHEMA, errors=errors
         )
 
-
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
         return OptionsFlowHandler(config_entry)
 
+
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) :
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)

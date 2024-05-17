@@ -13,7 +13,6 @@ from .sonyavr import SonyAVR
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE]
-#PLATFORMS = [Platform.MEDIA_PLAYER]
 
 
 async def async_setup_entry(
@@ -42,18 +41,20 @@ async def async_setup_entry(
 
     return True
 
+
 def _update_max_volume(sonyavr, value):
     try:
         vol = int(value)
-        if (vol is not None):
+        if vol is not None:
             sonyavr.volume_max = vol
     except:
         pass
 
 
 async def options_update_listener(
-    hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry):
-    
+    hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
+):
+
     _update_max_volume(sonyavr, config_entry.options[CONF_MAX_VOLUME])
 
     """Handle options update."""
@@ -71,4 +72,3 @@ async def async_unload_entry(
         entry_data["unsub_options_update_listener"]()
 
     return unload_ok
-

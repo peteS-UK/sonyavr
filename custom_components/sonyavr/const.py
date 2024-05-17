@@ -1,4 +1,3 @@
-
 CONF_DISCOVER = "discover"
 CONF_MANUAL = "manual"
 CONF_MAX_VOLUME = "max_volume"
