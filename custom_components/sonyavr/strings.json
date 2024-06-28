@@ -2,14 +2,15 @@
   "title": "Sony AVR",
     "config": {
       "error": {
-        "data": "You must enter the IP address, Name and model of the AVR"
+        "data": "You must enter the IP address, name, model and port of the AVR"
       },
       "step": {
         "user": {
           "data": {
             "host": "IP Address of the S AVR",
             "name":"Name of the AVR",
-            "model":"Model of the AVR"
+            "model":"Model of the AVR",
+            "port":"Communication Port on AVR"
           },
           "description": "Enter the details for your AVR.",
           "title": "Sony AVR"

@@ -25,6 +25,7 @@ send_command:
             - Set Volume
             - Set Sound Field
             - Set Source
+            - Byte Array String
     Value:
       name: Command Value
       description: "The value associated with the command."
