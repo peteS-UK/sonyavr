@@ -730,7 +730,7 @@ class CommandService:
 
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
-        if target_volume <= MAX_VOLUME:
+        if target_volume <= self.state_service.volume_max:
             if self.state_service.volume_model == 3:
                 await self.async_set_volume(target_volume)
             else:
@@ -743,7 +743,7 @@ class CommandService:
 
     async def async_volume_down(self):
         target_volume = self.state_service.volume - self.scroll_step_volume
-        if target_volume >= MIN_VOLUME:
+        if target_volume >= self.state_service.volume_min:
             if self.state_service.volume_model == 3:
                 await self.async_set_volume(target_volume)
             else:

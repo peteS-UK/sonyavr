@@ -33,7 +33,7 @@ async def async_setup_entry(
         hass_data[CONF_HOST],
         hass_data[CONF_NAME],
         hass_data[CONF_MODEL],
-        int(hass_data[CONF_PORT]),
+        int(hass_data.get(CONF_PORT, "33335")),
     )
 
     _update_max_volume(sonyavr, entry.options.get(CONF_MAX_VOLUME, MAX_VOLUME))
