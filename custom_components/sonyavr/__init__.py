@@ -12,7 +12,7 @@ from .sonyavr import SonyAVR
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE]
+PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SENSOR]
 
 
 async def async_setup_entry(

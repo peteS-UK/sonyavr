@@ -1121,6 +1121,8 @@ class FeedbackWatcher:
                         self.sony_avr._update_cb()
                     if self.sony_avr._remote_update_cb:
                         self.sony_avr._remote_update_cb()
+                    if self.sony_avr._sensor_update_cb:
+                        self.sony_avr._sensor_update_cb()
             # except socket.timeout as e:
             # 	_LOGGER.debug("Timeout: reconnecting...")
             # 	self.reconnect()
@@ -1171,6 +1173,7 @@ class SonyAVR:
         self.port = port
         self._update_cb = None
         self._remote_update_cb = None
+        self._sensor_update_cb = None
 
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
@@ -1300,6 +1303,9 @@ class SonyAVR:
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
+
+    def set_sensor_update_cb(self, cb):
+        self._sensor_update_cb = cb
 
     async def async_update_status(self):
         await self.async_poll_state()
