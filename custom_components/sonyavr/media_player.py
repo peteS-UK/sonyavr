@@ -247,7 +247,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     async def async_set_volume_level(self, volume: float) -> None:
         _vol = (volume * self._device.volume_range) + self._device.volume_min
-        await self._device.async_volume_set(int(_vol))
+        await self._device.async_volume_set(_vol)
 
     async def async_turn_off(self) -> None:
         await self._device.async_turn_off()
