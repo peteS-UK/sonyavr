@@ -4,7 +4,7 @@ import logging
 
 from homeassistant import config_entries, core
 from homeassistant.const import Platform
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL, CONF_PORT
 
 from .const import DOMAIN, CONF_MAX_VOLUME, MAX_VOLUME
 
@@ -12,7 +12,7 @@ from .sonyavr import SonyAVR
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE]
+PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SENSOR]
 
 
 async def async_setup_entry(
@@ -29,7 +29,12 @@ async def async_setup_entry(
 
     _LOGGER.debug("Adding %s from config", hass_data[CONF_HOST])
 
-    sonyavr = SonyAVR(hass_data[CONF_HOST], hass_data[CONF_NAME], hass_data[CONF_MODEL])
+    sonyavr = SonyAVR(
+        hass_data[CONF_HOST],
+        hass_data[CONF_NAME],
+        hass_data[CONF_MODEL],
+        int(hass_data.get(CONF_PORT, "33335")),
+    )
 
     _update_max_volume(sonyavr, entry.options.get(CONF_MAX_VOLUME, MAX_VOLUME))
 

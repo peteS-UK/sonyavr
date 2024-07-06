@@ -7,7 +7,7 @@ import voluptuous as vol
 from .const import DOMAIN, CONF_DISCOVER, CONF_MANUAL
 
 from homeassistant import config_entries, core, exceptions
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
@@ -24,6 +24,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): cv.string,
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_MODEL): cv.string,
+        vol.Optional(CONF_PORT, default=33335): cv.string,
     }
 )
 
@@ -45,7 +46,15 @@ async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
     if "model" not in data.keys():
         data["model"] = ""
 
-    if (len(data["host"]) < 3) or (len(data["name"]) < 1) or (len(data["model"]) < 1):
+    if "port" not in data.keys():
+        data["port"] = ""
+
+    if (
+        (len(data["host"]) < 3)
+        or (len(data["name"]) < 1)
+        or (len(data["model"]) < 1)
+        or (len(data["port"]) < 1)
+    ):
         # Manual entry requires host and name
         raise ValueError
 

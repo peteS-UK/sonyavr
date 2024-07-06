@@ -14,7 +14,6 @@ import asyncio
 
 import sys
 
-
 _LOGGER = logging.getLogger(__name__)
 
 # logging.basicConfig(level = logging.DEBUG, format = "%(asctime)-15s [%(name)-5s] [%(levelname)-5s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -24,11 +23,16 @@ TCP_PORT_1 = 33335
 TCP_PORT_2 = 33336
 BUFFER_SIZE = 1024
 
-MIN_VOLUME = 0
-LOW_VOLUME = 15
-MEDIUM_VOLUME = 30
-
-from .const import MAX_VOLUME
+from .const import (
+    MAX_VOLUME,
+    MIN_VOLUME,
+    LOW_VOLUME,
+    VOLUME_STEP,
+    STR_DA5800ES_MAX_VOLUME,
+    STR_DA5800ES_MIN_VOLUME,
+    STR_DA5800ES_LOW_VOLUME,
+    STR_DA5800ES_VOLUME_STEP,
+)
 
 SOURCE_NAMES = [
     "bd",
@@ -446,7 +450,7 @@ class StateService:
             if vol > self.volume:
                 self.muted = False
             self.volume = vol
-            _LOGGER.debug("Volume %d" % vol)
+            _LOGGER.debug("Volume State Updated to %s" % vol)
 
     def update_muted(self, muted):
         if self.initialized:
@@ -521,13 +525,14 @@ class CommandService:
     logger = logging.getLogger("cmd")
     data_logger = logging.getLogger("send")
 
-    def __init__(self, device_service, state_service):
+    def __init__(self, device_service, state_service, port):
         self.device_service = device_service
         self.state_service = state_service
+        self.port = port
 
     def connect(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.device_service.ip, TCP_PORT_1))
+        s.connect((self.device_service.ip, self.port))
         return s
 
     def disconnect(self, s):
@@ -536,7 +541,7 @@ class CommandService:
     def send_command(self, cmd):
         if not self.block_sending:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.device_service.ip, TCP_PORT_1))
+            s.connect((self.device_service.ip, self.port))
             s.send(cmd)
             s.close()
             _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
@@ -549,7 +554,7 @@ class CommandService:
 
         try:
             self.command_reader, self.command_writer = await asyncio.open_connection(
-                self.device_service.ip, TCP_PORT_1
+                self.device_service.ip, self.port
             )
         except IOError as e:
             _LOGGER.critical(
@@ -685,19 +690,36 @@ class CommandService:
         self.state_service.update_volume(vol)
 
     async def async_set_volume(self, vol):
-        cmd = bytearray(
-            [
-                0x02,
-                0x06,
-                0xA0,
-                0x52,
-                0x00,
-                0x03,
-                0x00,
-                min(vol, self.state_service.volume_max),
-                0x00,
-            ]
-        )
+        if self.state_service.volume_model == 3:
+            # Normal Volume Model
+            cmd = bytearray(
+                [
+                    0x02,
+                    0x06,
+                    0xA0,
+                    0x52,
+                    0x00,
+                    0x03,
+                    0x00,
+                    min(vol, self.state_service.volume_max),
+                    0x00,
+                ]
+            )
+        else:
+            # Volume Model with float
+            cmd = bytearray(
+                [
+                    0x02,
+                    0x06,
+                    0xA0,
+                    0x52,
+                    0x00,
+                    0x03,
+                    0x00,
+                    0x00,  # Volume Byte in integer volume
+                    0x00,
+                ]
+            )
         await self.async_send_command(cmd)
         self.state_service.update_volume(vol)
 
@@ -708,8 +730,11 @@ class CommandService:
 
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
-        if target_volume <= MAX_VOLUME:
-            await self.async_set_volume(target_volume)
+        if target_volume <= self.state_service.volume_max:
+            if self.state_service.volume_model == 3:
+                await self.async_set_volume(target_volume)
+            else:
+                await self.async_send_command(CMD_VOLUME_UP)
 
     def volume_down(self):
         target_volume = self.state_service.volume - self.scroll_step_volume
@@ -718,8 +743,11 @@ class CommandService:
 
     async def async_volume_down(self):
         target_volume = self.state_service.volume - self.scroll_step_volume
-        if target_volume >= MIN_VOLUME:
-            await self.async_set_volume(target_volume)
+        if target_volume >= self.state_service.volume_min:
+            if self.state_service.volume_model == 3:
+                await self.async_set_volume(target_volume)
+            else:
+                await self.async_send_command(CMD_VOLUME_DOWN)
 
     def mute(self):
         if self.initialized:
@@ -800,17 +828,6 @@ class CommandService:
             self.send_command(CMD_FMTUNER_PRESET_DOWN)
 
 
-async def ScanPort(self, ip=None):
-
-    self.ip = ip
-
-    _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    _socket.settimeout(3)
-    self.result = _socket.connect_ex((self.ip, TCP_PORT_1))
-    _socket.close()
-    return self.result
-
-
 class DeviceService:
 
     initialized = False
@@ -842,23 +859,6 @@ class DeviceService:
         self.my_network = self.my_ip.rsplit(".", 1)[0]
         _LOGGER.debug("Network: %s IP: %s" % (self.my_network, self.my_ip))
 
-    async def find_device(self):
-        # 		self.ip = "192.168.3.42"
-        _LOGGER.debug("Searching for devices in %s.*" % (self.my_network))
-        port_list = []
-        for last_octet in range(1, 254):
-            device_ip = "%s.%s" % (self.my_network, last_octet)
-            port_list[last_octet - 1] = await asyncio.create_task(ScanPort(device_ip))
-
-        for last_octet in range(1, 254):
-            if port_list[last_octet - 1] == 0:
-                self.ip = self.my_network + "." + (last_octet - 1)
-                _LOGGER.info("Detected device on %s:%d" % (self.ip, TCP_PORT_1))
-                break
-
-        if self.ip == None:
-            _LOGGER.error("No device found in the local network!")
-
 
 class FeedbackWatcher:
 
@@ -887,9 +887,37 @@ class FeedbackWatcher:
         await self.writer.wait_closed()
 
     def check_volume(self, data):
-        if FEEDBACK_VOLUME == data[:-2]:
-            _LOGGER.debug("Vol %s", data[7])
-            vol = data[7]
+        if FEEDBACK_VOLUME[0:5] == data[0:5]:
+            # Check if AVR is STR or not
+            if self.state_service.volume_model is None:
+                if data[5] == 1:
+                    _LOGGER.debug("Setting Volume Model 1")
+                    self.state_service.volume_model = 1
+                    self.state_service.volume_min = STR_DA5800ES_MIN_VOLUME
+                    self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
+                    self.state_service.volume_range = (
+                        self.state_service.volume_max - self.state_service.volume_min
+                    )
+                    self.command_service.scroll_step_volume = STR_DA5800ES_VOLUME_STEP
+                else:
+                    _LOGGER.debug("Setting Volume Model 3")
+                    self.state_service.volume_model = 3
+                    self.state_service.volume_min = MIN_VOLUME
+                    self.state_service.volume_max = MAX_VOLUME
+                    self.state_service.volume_range = (
+                        self.state_service.volume_max - self.state_service.volume_min
+                    )
+                    self.command_service.scroll_step_volume = VOLUME_STEP
+
+            if self.state_service.volume_model == 3:
+                vol = data[7]
+            else:
+                vol = float(data[6] if data[6] < 128 else (data[6] - 256)) + (
+                    data[7] / 256.0
+                )
+
+            _LOGGER.debug("Vol %s", vol)
+
             if vol <= self.state_service.volume_max:
                 self.state_service.update_volume(vol)
             elif vol == self.state_service.volume_max + 1:
@@ -1007,7 +1035,7 @@ class FeedbackWatcher:
 
         try:
             self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, TCP_PORT_1
+                self.device_service.ip, self.port
             )
             self._connected = True
         except IOError as e:
@@ -1030,7 +1058,7 @@ class FeedbackWatcher:
             await self.writer.wait_closed()
 
             self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, TCP_PORT_1
+                self.device_service.ip, self.port
             )
 
             self.command_service.block_sending = False
@@ -1093,6 +1121,8 @@ class FeedbackWatcher:
                         self.sony_avr._update_cb()
                     if self.sony_avr._remote_update_cb:
                         self.sony_avr._remote_update_cb()
+                    if self.sony_avr._sensor_update_cb:
+                        self.sony_avr._sensor_update_cb()
             # except socket.timeout as e:
             # 	_LOGGER.debug("Timeout: reconnecting...")
             # 	self.reconnect()
@@ -1120,30 +1150,34 @@ class SonyAVR:
 
     logger = logging.getLogger("Class")
 
-    def __init__(self, ip=None, name=None, model=None):
+    def __init__(self, ip=None, name=None, model=None, port=33335):
 
         self.device_service = DeviceService()
         self.state_service = StateService()
-        self.command_service = CommandService(self.device_service, self.state_service)
+        self.command_service = CommandService(
+            self.device_service, self.state_service, port
+        )
         self.feedback_watcher = FeedbackWatcher(
             self,
             self.device_service,
             self.state_service,
             self.command_service,
-            TCP_PORT_1,
+            port,
         )
-        # self.feedback_watcher_2 = FeedbackWatcher(self, self.device_service, self.state_service, self.command_service, TCP_PORT_2)
 
         self.initialize_device()
 
         self.device_service.ip = ip
         self.name = name
         self.model = model
+        self.port = port
         self._update_cb = None
         self._remote_update_cb = None
+        self._sensor_update_cb = None
 
-        self.state_service.volume_min = MIN_VOLUME
-        self.state_service.volume_max = MAX_VOLUME
+        self.state_service.volume_model = None
+        self.state_service.volume_min = 0
+        self.state_service.volume_max = 0
         self.state_service.volume_range = (
             self.state_service.volume_max - self.state_service.volume_min
         )
@@ -1168,7 +1202,6 @@ class SonyAVR:
         #    self.feedback_watcher_2.join(8)
 
     def initialize_device(self):
-        # self.device_service.find_device()
         self.device_service.initialized = True
 
     def poll_state(self):
@@ -1261,12 +1294,18 @@ class SonyAVR:
                 await self.async_set_source(value)
             case "Set Volume":
                 await self.async_volume_set(int(value))
+            case "Byte Array String":
+                _byte_command = bytes.fromhex(value)
+                await self.command_service.async_send_command(_byte_command)
 
     def set_update_cb(self, cb):
         self._update_cb = cb
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
+
+    def set_sensor_update_cb(self, cb):
+        self._sensor_update_cb = cb
 
     async def async_update_status(self):
         await self.async_poll_state()
