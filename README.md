@@ -8,11 +8,13 @@ This custom component implements a media player entity and a remote entity  for 
 
 Online sources suggest similar commands may work with
 
-Sony STR-ZA1100ES, STR-ZA2100ES, STR-ZA3100ES, STR-DN810ES, STR-DN1070 (2016)
-STR-DN1060, STR-ZA5000ES (2015)
-STR-ZA1000ES, STR-ZA2000ES, STR-ZA3000ES, STR-DN850, STR-DN1050 (2014)
-STR-DN1040 (2013)
-STR-DA1800, STR-DA2800, STR-DA5800 (2012)
+| Year | AVR |
+| --- | --- |
+| 2016 | STR-ZA1100ES, STR-ZA2100ES, STR-ZA3100ES, STR-DN810ES, STR-DN1070 |
+| 2015 | STR-DN1060, STR-ZA5000ES |
+| 2014 | STR-ZA1000ES, STR-ZA2000ES, STR-ZA3000ES, STR-DN850, STR-DN1050 |
+| 2013 | STR-DN1040 |
+| 2012 | STR-DA1800, STR-DA2800, STR-DA5800 |
 
 but this is untested at present.  It's known not to work with STR-DN1030, which doesn't respond to the same commands or send feedback.  
 
@@ -24,12 +26,6 @@ For other AVRs, you may need to change the default port during configuration.  B
 | 50001 | STR-DN1060 |
 | 33336 | DN-1070 & CISv2 |
 | 33335 | All Others |
-
-
-Port 8080 (STR-DA1800)
-Port 50001 (STR-DN1060)
-Port 33336 (DN-1070 & CISv2)
-Port 33335 (All Others)
 
 The integration is a Local Push integration - i.e. it subscribes to notification of changes to the AVR, so doesn't need to periodically poll for its state.
 
