@@ -701,12 +701,16 @@ class CommandService:
                     0x00,
                     0x03,
                     0x00,
-                    min(vol, self.state_service.volume_max),
+                    min(int(vol), self.state_service.volume_max),
                     0x00,
                 ]
             )
         else:
             # Volume Model with float
+            # convert vol to closest .0 or .5
+            vol = round(float(vol) * 2) / 2
+
+            _vol = int(vol) if int(vol) > 0 else int(vol) + 256
             cmd = bytearray(
                 [
                     0x02,
@@ -714,9 +718,9 @@ class CommandService:
                     0xA0,
                     0x52,
                     0x00,
-                    0x03,
-                    0x00,
-                    0x00,  # Volume Byte in integer volume
+                    0x01,
+                    min(int(_vol), self.state_service.volume_max),
+                    0x80 if (vol % 1) == 0.5 else 0x00,
                     0x00,
                 ]
             )
@@ -1293,7 +1297,7 @@ class SonyAVR:
                     return
                 await self.async_set_source(value)
             case "Set Volume":
-                await self.async_volume_set(int(value))
+                await self.async_volume_set(value)
             case "Byte Array String":
                 _byte_command = bytes.fromhex(value)
                 await self.command_service.async_send_command(_byte_command)
