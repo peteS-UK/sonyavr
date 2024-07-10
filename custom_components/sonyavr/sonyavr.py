@@ -708,9 +708,19 @@ class CommandService:
         else:
             # Volume Model with float
             # convert vol to closest .0 or .5
-            vol = round(float(vol) * 2) / 2
+            _vol = round(float(vol) * 2) / 2
+            _vol = max(
+                min(_vol, self.state_service.volume_max), self.state_service.volume_min
+            )
 
-            _vol = int(vol) if int(vol) > 0 else int(vol) + 256
+            # When the volume is .5, avr always adds .5 to result, so subtract 1 for -ve's
+
+            _vol_byte = (
+                int(_vol)
+                if _vol > 0
+                else int(_vol) + 256 - (1 if (vol % 1) == 0.5 else 0)
+            )
+
             cmd = bytearray(
                 [
                     0x02,
@@ -719,7 +729,7 @@ class CommandService:
                     0x52,
                     0x00,
                     0x01,
-                    min(int(_vol), self.state_service.volume_max),
+                    _vol_byte,
                     0x80 if (vol % 1) == 0.5 else 0x00,
                     0x00,
                 ]
