@@ -2,39 +2,15 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Iterable
-from typing import Any
+from homeassistant import config_entries, core
+from homeassistant.components.remote import (
+    RemoteEntity,
+)
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
 
-from .sonyavr import SonyAVR
-
-import voluptuous as vol
-
-from homeassistant.components.remote import (
-    ATTR_DELAY_SECS,
-    ATTR_NUM_REPEATS,
-    DEFAULT_DELAY_SECS,
-    RemoteEntity,
-)
-
-from homeassistant import config_entries, core
-
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import (
-    config_validation as cv,
-    discovery_flow,
-    entity_platform,
-)
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.helpers.device_registry import DeviceInfo
-
 _LOGGER = logging.getLogger(__name__)
-
-
-from .const import DEFAULT_NAME
 
 
 async def async_setup_entry(
@@ -42,7 +18,6 @@ async def async_setup_entry(
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     if config_entry.options:
@@ -57,7 +32,6 @@ class SonyAVRDevice(RemoteEntity):
     # Representation of a Sony AVR
 
     def __init__(self, device, hass):
-
         self._device = device
         self._hass = hass
         self._entity_id = "remote.sonyavr"
@@ -76,11 +50,8 @@ class SonyAVRDevice(RemoteEntity):
         self.async_schedule_update_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
-
         self._device.set_remote_update_cb(None)
         # await self._device.command_service.async_disconnect()
-
-    should_poll = False
 
     @property
     def should_poll(self):
@@ -136,9 +107,9 @@ class SonyAVRDevice(RemoteEntity):
 
     @property
     def state(self):
-        if self._device.state_service.power == False:
+        if not self._device.state_service.power:
             return "off"
-        elif self._device.state_service.power == True:
+        elif self._device.state_service.power:
             return "on"
         else:
             return None

@@ -1,21 +1,14 @@
 import logging
+from typing import Any, Dict
 
-from typing import Any, Dict, Optional
-
-import voluptuous as vol
-
-from .const import DOMAIN, CONF_DISCOVER, CONF_MANUAL
-
-from homeassistant import config_entries, core, exceptions
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL, CONF_PORT
-from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.entity_registry import (
-    async_entries_for_config_entry,
-    async_get,
-)
+import voluptuous as vol
+from homeassistant import config_entries, core, exceptions
+from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, CONF_PORT
+from homeassistant.core import callback
 
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +29,6 @@ class SelectError(exceptions.HomeAssistantError):
 
 
 async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
-
     if "host" not in data.keys():
         data["host"] = ""
 
@@ -60,7 +52,6 @@ async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
 
 
 class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     async def async_step_user(self, user_input=None):
