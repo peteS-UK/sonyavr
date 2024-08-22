@@ -7,12 +7,21 @@ import time
 
 import logging
 
-import time
 import binascii
 
 import asyncio
 
 import sys
+
+from .const import (
+    MAX_VOLUME,
+    MIN_VOLUME,
+    LOW_VOLUME,
+    VOLUME_STEP,
+    STR_DA5800ES_MAX_VOLUME,
+    STR_DA5800ES_MIN_VOLUME,
+    STR_DA5800ES_VOLUME_STEP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,16 +32,6 @@ TCP_PORT_1 = 33335
 TCP_PORT_2 = 33336
 BUFFER_SIZE = 1024
 
-from .const import (
-    MAX_VOLUME,
-    MIN_VOLUME,
-    LOW_VOLUME,
-    VOLUME_STEP,
-    STR_DA5800ES_MAX_VOLUME,
-    STR_DA5800ES_MIN_VOLUME,
-    STR_DA5800ES_LOW_VOLUME,
-    STR_DA5800ES_VOLUME_STEP,
-)
 
 SOURCE_NAMES = [
     "bd",
@@ -380,7 +379,6 @@ FM_TUNER_MENU_MAP = {
 
 
 class StateService:
-
     initialized = False
 
     # logger = logging.getLogger("sonyavr.state")
@@ -422,13 +420,13 @@ class StateService:
     def __getattr__(self, key):
         try:
             return self.states[key]
-        except KeyError as err:
+        except KeyError as key:
             raise AttributeError(key)
 
     def __setattr_(self, key, value):
         try:
             self.states[key] = value
-        except KeyError as err:
+        except KeyError as key:
             raise AttributeError(key)
 
     def update_power(self, power, state_only=False):
@@ -514,7 +512,6 @@ class StateService:
 
 
 class CommandService:
-
     device_service = None
     state_service = None
     initialized = False
@@ -551,7 +548,6 @@ class CommandService:
             # _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
 
     async def async_connect(self):
-
         try:
             self.command_reader, self.command_writer = await asyncio.open_connection(
                 self.device_service.ip, self.port
@@ -560,16 +556,15 @@ class CommandService:
             _LOGGER.critical(
                 "Cannot connect to command socket %d: %s", e.errno, e.strerror
             )
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on command socket connection %s", sys.exc_info()[0]
             )
 
     async def async_reconnect(self):
-
         try:
             await self.async_disconnect()
-        except:
+        except Exception:
             pass
         try:
             await self.async_connect()
@@ -577,7 +572,7 @@ class CommandService:
             _LOGGER.critical(
                 "Cannot connect to command socket %d: %s", e.errno, e.strerror
             )
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on command socket connection %s", sys.exc_info()[0]
             )
@@ -586,7 +581,7 @@ class CommandService:
         try:
             self.command_writer.close()
             await self.command_writer.wait_closed()
-        except:
+        except Exception:
             _LOGGER.error("Cannot disconnect from command socket")
 
     async def async_send_command(self, cmd):
@@ -595,7 +590,7 @@ class CommandService:
                 self.command_writer.write(cmd)
                 await self.command_writer.drain()
                 _LOGGER.debug("Command : %s", ", ".join([hex(byte) for byte in cmd]))
-            except:
+            except Exception:
                 await self.async_reconnect()
                 self.command_writer.write(cmd)
                 await self.command_writer.drain()
@@ -843,7 +838,6 @@ class CommandService:
 
 
 class DeviceService:
-
     initialized = False
     my_ip = None
     my_network = None
@@ -853,29 +847,22 @@ class DeviceService:
     logger = logging.getLogger("dev")
 
     def __init__(self):
-        self.my_ip = [
-            l
-            for l in (
-                [
-                    ip
-                    for ip in socket.gethostbyname_ex(socket.gethostname())[2]
-                    if not ip.startswith("127.")
-                ][:1],
-                [
-                    [
-                        (s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
-                        for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
-                    ][0][1]
-                ],
-            )
-            if l
-        ][0][0]
-        self.my_network = self.my_ip.rsplit(".", 1)[0]
-        _LOGGER.debug("Network: %s IP: %s" % (self.my_network, self.my_ip))
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        try:
+            # doesn't even have to be reachable
+            s.connect(("8.8.8.8", 53))
+            _ip = s.getsockname()[0]
+        except Exception:
+            _ip = "127.0.0.1"
+        finally:
+            s.close()
+        self.my_ip = _ip
+        _LOGGER.debug(f"IP: {self.my_ip}")
 
 
 class FeedbackWatcher:
-
     device_service = None
     state_service = None
     command_service = None
@@ -887,7 +874,6 @@ class FeedbackWatcher:
     data_logger = logging.getLogger("sonyavr.recv")
 
     def __init__(self, sony_avr, device_service, state_service, command_service, port):
-
         self.device_service = device_service
         self.state_service = state_service
         self.command_service = command_service
@@ -1046,7 +1032,6 @@ class FeedbackWatcher:
         _LOGGER.info("Debug %s%s", prepend_text, binascii.hexlify(data, ":"))
 
     async def connect(self):
-
         try:
             self.reader, self.writer = await asyncio.open_connection(
                 self.device_service.ip, self.port
@@ -1057,7 +1042,7 @@ class FeedbackWatcher:
                 "Cannot create feedback listener connection %d: %s", e.errno, e.strerror
             )
             self._connected = False
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on feedback listener connection %s", sys.exc_info()[0]
             )
@@ -1066,7 +1051,6 @@ class FeedbackWatcher:
         return self._connected
 
     async def reconnect(self):
-
         try:
             self.writer.close()
             await self.writer.wait_closed()
@@ -1084,7 +1068,7 @@ class FeedbackWatcher:
                 e.strerror,
             )
             self.ended = True
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on feedback listener re-connection %s", sys.exc_info()[0]
             )
@@ -1098,12 +1082,11 @@ class FeedbackWatcher:
             _LOGGER.critical(
                 "Cannot close feedback listener %d: %s", e.errno, e.strerror
             )
-        except:
+        except Exception:
             _LOGGER.critical("Unknown error on listener close %s", sys.exc_info()[0])
 
     async def run(self):
-
-        if await self.connect() != True:
+        if not await self.connect():
             return
 
         while not self.ended:
@@ -1140,7 +1123,7 @@ class FeedbackWatcher:
             # except socket.timeout as e:
             # 	_LOGGER.debug("Timeout: reconnecting...")
             # 	self.reconnect()
-            except Exception as e:
+            except Exception:
                 _LOGGER.exception("Failed to process data: reconnecting...")
                 await self.reconnect()
             finally:
@@ -1150,7 +1133,7 @@ class FeedbackWatcher:
             self.writer.close()
             await self.writer.wait_closed()
             _LOGGER.info("Connection closed")
-        except:
+        except Exception:
             _LOGGER.error("Cannot close feedback listener connection")
 
 
@@ -1165,7 +1148,6 @@ class SonyAVR:
     logger = logging.getLogger("Class")
 
     def __init__(self, ip=None, name=None, model=None, port=33335):
-
         self.device_service = DeviceService()
         self.state_service = StateService()
         self.command_service = CommandService(
@@ -1208,7 +1190,7 @@ class SonyAVR:
 
     async def quit(self):
         self.set_initialized(False)
-        if self.feedback_watcher != None:
+        if self.feedback_watcher is not None:
             self.feedback_watcher.kill()
         #    self.feedback_watcher_1.join(8)
         # if self.feedback_watcher_2 != None:
@@ -1273,7 +1255,6 @@ class SonyAVR:
             await self.command_service.async_unmute()
 
     async def async_send_command(self, command, value):
-
         # await self.command_service.async_connect()
 
         match command:

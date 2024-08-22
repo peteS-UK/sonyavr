@@ -5,7 +5,7 @@ import asyncio
 
 from .const import DOMAIN
 
-from .sonyavr import SonyAVR, DeviceService
+from .const import SERVICE_SEND_COMMAND
 
 import voluptuous as vol
 
@@ -22,22 +22,17 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
     CONF_MODEL,
-    EVENT_HOMEASSISTANT_START,
 )
-from homeassistant.core import HomeAssistant
+
 from homeassistant.helpers import (
     config_validation as cv,
-    discovery_flow,
     entity_platform,
 )
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.start import async_at_start
 
 _LOGGER = logging.getLogger(__name__)
 
-from .const import SERVICE_SEND_COMMAND, DEFAULT_NAME
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -63,7 +58,6 @@ async def async_setup_entry(
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     if config_entry.options:
@@ -86,7 +80,6 @@ class SonyAVRDevice(MediaPlayerEntity):
     # Representation of a Sony AVR
 
     def __init__(self, device, hass):
-
         self._device = device
         self._hass = hass
         self._entity_id = "media_player.sonyavr"
@@ -132,10 +125,8 @@ class SonyAVRDevice(MediaPlayerEntity):
         try:
             await self._device.stop_notifier()
             self._notifier_task.cancel()
-        except:
+        except Exception:
             pass
-
-    should_poll = False
 
     @property
     def should_poll(self):
@@ -143,7 +134,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def icon(self):
-        if self._device.state_service.power == True:
+        if self._device.state_service.power:
             return "mdi:audio-video"
         else:
             return "mdi:audio-video-off"
@@ -192,9 +183,9 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState | None:
-        if self._device.state_service.power == False:
+        if not self._device.state_service.power:
             return MediaPlayerState.OFF
-        elif self._device.state_service.power == True:
+        elif self._device.state_service.power:
             return MediaPlayerState.ON
         else:
             return None
@@ -225,7 +216,6 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def extra_state_attributes(self):
-
         _attributes = {}
 
         _attributes["volume"] = self._device.volume
