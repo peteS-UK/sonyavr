@@ -23,7 +23,6 @@ For other AVRs, you may need to change the default port during configuration.  B
 | Port | AVR |
 | --- | --- |
 | 8080 | STR-DA1800 |
-| 50001 | STR-DN1060 |
 | 33336 | DN-1070 & CISv2 |
 | 33335 | All Others |
 
