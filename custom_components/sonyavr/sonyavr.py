@@ -233,7 +233,7 @@ FEEDBACK_SOURCE_MAP = {
     ],
     "saCd": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x02, 0x00]),
-        bytearray([0x21, 0x00, 0x32]),
+        bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x23, 0x00, 0xA8]),
         bytearray([0x20, 0x00, 0xAB]),
         bytearray([0x00, 0x11, 0x00]),
@@ -638,6 +638,7 @@ class CommandService:
                 await self.command_writer.drain()
                 _LOGGER.debug("Command : %s", ", ".join([hex(byte) for byte in cmd]))
             except Exception:
+                _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
                 self.command_writer.write(cmd)
                 await self.command_writer.drain()
@@ -978,19 +979,29 @@ class FeedbackWatcher:
         source_switched = False
         for source, source_feedback in FEEDBACK_SOURCE_MAP.items():
             if source_feedback[0][:6] == data[:6]:
+                _LOGGER.debug("**Source matched %s", source)
+                _LOGGER.debug("**Extra data %s", binascii.hexlify(data[-3:], ":"))
                 self.state_service.update_source(source)
                 # The command also contains the power and muted states
                 if source_feedback[3] == data[-3:] or source_feedback[6] == data[-3:]:
+                    _LOGGER.debug("**Power Off")
                     # FEEDBACK_POWER_OFF
                     self.state_service.update_power(False, True)
                 elif source_feedback[1] == data[-3:] or source_feedback[4] == data[-3:]:
+                    _LOGGER.debug("**Power On Mute Off")
                     # FEEDBACK_POWER_ON_MUTE_OFF
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(False)
                 elif source_feedback[2] == data[-3:] or source_feedback[5] == data[-3:]:
+                    _LOGGER.debug("**Power On Mute On")
                     # FEEDBACK_POWER_ON_MUTE_ON
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(True)
+                else:
+                    _LOGGER.debug(
+                        "**Unmatched Power/Mute Data %s",
+                        binascii.hexlify(data[-3:], ":"),
+                    )
                 source_switched = True
         return source_switched
 

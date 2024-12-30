@@ -51,7 +51,10 @@ def _update_max_volume(sonyavr, value):
     try:
         vol = int(value)
         if vol is not None:
-            sonyavr.volume_max = vol
+            sonyavr.state_service.volume_max = vol
+            sonyavr.state_service.volume_range = (
+                sonyavr.state_service.volume_max - sonyavr.state_service.volume_min
+            )
     except Exception:
         pass
 
@@ -59,7 +62,6 @@ def _update_max_volume(sonyavr, value):
 async def options_update_listener(
     hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
-
     _update_max_volume(
         hass.data[DOMAIN][config_entry.entry_id]["sonyavr"],
         config_entry.options[CONF_MAX_VOLUME],
