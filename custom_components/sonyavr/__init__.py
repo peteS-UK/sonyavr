@@ -51,10 +51,7 @@ def _update_max_volume(sonyavr, value):
     try:
         vol = int(value)
         if vol is not None:
-            sonyavr.state_service.volume_max = vol
-            sonyavr.state_service.volume_range = (
-                sonyavr.state_service.volume_max - sonyavr.state_service.volume_min
-            )
+            sonyavr.volume_max = vol
     except Exception:
         pass
 
@@ -68,7 +65,7 @@ async def options_update_listener(
     )
 
     """Handle options update."""
-    await hass.config_entries.async_reload(config_entry.entry_id)
+    # await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def async_unload_entry(

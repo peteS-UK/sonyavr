@@ -114,6 +114,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     def async_update_callback(self, reason=False):
         """Update the device's state."""
+        _LOGGER.debug("Updating Media Player state")
         self.async_schedule_update_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:

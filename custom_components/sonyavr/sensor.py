@@ -95,7 +95,10 @@ class SonyAVRDevice(SensorEntity):
 
     @property
     def device_class(self):
-        return SensorDeviceClass.SOUND_PRESSURE
+        if self._device.state_service.volume_model == 3:
+            return None
+        else:
+            return SensorDeviceClass.SOUND_PRESSURE
 
     @property
     def native_unit_of_measurement(self):

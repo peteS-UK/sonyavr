@@ -941,7 +941,9 @@ class FeedbackWatcher:
                     _LOGGER.debug("Setting Volume Model 1")
                     self.state_service.volume_model = 1
                     self.state_service.volume_min = STR_DA5800ES_MIN_VOLUME
-                    self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
+                    if self.state_service.volume_max == 0:
+                        # Prevent overwrite of configured volume on reload
+                        self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -950,7 +952,9 @@ class FeedbackWatcher:
                     _LOGGER.debug("Setting Volume Model 3")
                     self.state_service.volume_model = 3
                     self.state_service.volume_min = MIN_VOLUME
-                    self.state_service.volume_max = MAX_VOLUME
+                    if self.state_service.volume_max == 0:
+                        # Prevent overwrite of configured volume on reload
+                        self.state_service.volume_max = MAX_VOLUME
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -1267,8 +1271,10 @@ class SonyAVR:
         await self.command_service.async_unmute()
         await asyncio.sleep(1.0)
         await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+        _LOGGER.debug("Volume Down")
         await asyncio.sleep(1.0)
         await self.command_service.async_send_command(CMD_VOLUME_UP)
+        _LOGGER.debug("Volume Down")
         await asyncio.sleep(1.0)
         await self.command_service.async_source_up()
         await asyncio.sleep(2.0)
@@ -1360,6 +1366,7 @@ class SonyAVR:
         self._sensor_update_cb = cb
 
     async def async_update_status(self):
+        _LOGGER.debug("Updating Initial Status")
         await self.async_poll_state()
 
     async def run_notifier(self):
