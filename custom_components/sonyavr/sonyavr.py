@@ -3,7 +3,6 @@ __author__ = "michaelkapuscik"
 __author__ = "petersketch"
 
 import socket
-import time
 
 import logging
 
@@ -574,26 +573,6 @@ class CommandService:
         self.state_service = state_service
         self.port = port
 
-    def connect(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.device_service.ip, self.port))
-        return s
-
-    def disconnect(self, s):
-        s.close()
-
-    def send_command(self, cmd):
-        if not self.block_sending:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.device_service.ip, self.port))
-            s.send(cmd)
-            s.close()
-            _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-        else:
-            # Wait on this thread or get a segmentation fault!
-            time.sleep(50.0 / 1000.0)
-            # _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-
     async def async_connect(self):
         try:
             self.command_reader, self.command_writer = await asyncio.open_connection(
@@ -649,29 +628,8 @@ class CommandService:
                 _LOGGER.critical("Command Socket doesn't exist")
             await asyncio.sleep(50.0 / 1000.0)
 
-    def send_command_2(self, cmd):
-        if not self.block_sending:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.device_service.ip, TCP_PORT_2))
-            s.send(cmd)
-            s.close()
-            _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-        else:
-            # Wait on this thread or get a segmentation fault!
-            time.sleep(50.0 / 1000.0)
-            # _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-
-    def send_command_w(self, cmd):
-        self.send_command(cmd)
-
-    def power_on(self):
-        self.send_command(CMD_POWER_ON)
-
     async def async_power_on(self):
         await self.async_send_command(CMD_POWER_ON)
-
-    def power_off(self):
-        self.send_command(CMD_POWER_OFF)
 
     async def async_power_off(self):
         await self.async_send_command(CMD_POWER_OFF)
@@ -685,26 +643,11 @@ class CommandService:
                 await self.async_power_on()
                 self.state_service.update_power(True)
 
-    def hdmiout_on(self):
-        self.send_command(CMD_HDMIOUT_ON)
-
     async def async_hdmiout_on(self):
         await self.async_send_command(CMD_HDMIOUT_ON)
 
-    def hdmiout_off(self):
-        self.send_command(CMD_HDMIOUT_OFF)
-
     async def async_hdmiout_off(self):
         await self.async_send_command(CMD_HDMIOUT_OFF)
-
-    def toggle_hdmiout(self):
-        if self.initialized:
-            if self.state_service.hdmiout:
-                self.hdmiout_off()
-                self.state_service.update_hdmiout(False)
-            else:
-                self.hdmiout_on()
-                self.state_service.update_hdmiout(True)
 
     async def async_toggle_hdmiout(self):
         if self.initialized:
@@ -714,23 +657,6 @@ class CommandService:
             else:
                 await self.async_hdmiout_on()
                 self.state_service.update_hdmiout(True)
-
-    def set_volume(self, vol):
-        cmd = bytearray(
-            [
-                0x02,
-                0x06,
-                0xA0,
-                0x52,
-                0x00,
-                0x03,
-                0x00,
-                min(vol, self.state_service.volume_max),
-                0x00,
-            ]
-        )
-        self.send_command(cmd)
-        self.state_service.update_volume(vol)
 
     async def async_set_volume(self, vol):
         if self.state_service.volume_model == 3:
@@ -780,11 +706,6 @@ class CommandService:
         await self.async_send_command(cmd)
         self.state_service.update_volume(vol)
 
-    def volume_up(self):
-        target_volume = self.state_service.volume + self.scroll_step_volume
-        if target_volume <= MAX_VOLUME:
-            self.set_volume(None, target_volume)
-
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
         if target_volume <= self.state_service.volume_max:
@@ -792,11 +713,6 @@ class CommandService:
                 await self.async_set_volume(target_volume)
             else:
                 await self.async_send_command(CMD_VOLUME_UP)
-
-    def volume_down(self):
-        target_volume = self.state_service.volume - self.scroll_step_volume
-        if target_volume >= MIN_VOLUME:
-            self.set_volume(None, target_volume)
 
     async def async_volume_down(self):
         target_volume = self.state_service.volume - self.scroll_step_volume
@@ -806,30 +722,15 @@ class CommandService:
             else:
                 await self.async_send_command(CMD_VOLUME_DOWN)
 
-    def mute(self):
-        if self.initialized:
-            self.send_command(CMD_MUTE)
-            self.state_service.update_muted(True)
-
     async def async_mute(self):
         if self.initialized:
             await self.async_send_command(CMD_MUTE)
             self.state_service.update_muted(True)
 
-    def unmute(self):
-        if self.initialized:
-            self.send_command(CMD_UNMUTE)
-            self.state_service.update_muted(False)
-
     async def async_unmute(self):
         if self.initialized:
             await self.async_send_command(CMD_UNMUTE)
             self.state_service.update_muted(False)
-
-    def select_source(self, source):
-        if self.initialized and self.state_service.source != source:
-            self.state_service.update_source(source)
-            self.send_command(CMD_SOURCE_MAP[source])
 
     async def async_select_source(self, source):
         _LOGGER.debug("Select Source %s", source)
@@ -858,11 +759,6 @@ class CommandService:
                 else:
                     await self.async_select_source(SOURCE_NAMES[len(SOURCE_NAMES) - 1])
                     return
-
-    def select_sound_field(self, sound_field):
-        if self.initialized and self.state_service.sound_field != sound_field:
-            self.state_service.update_sound_field(sound_field)
-            self.send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
     async def async_select_sound_field(self, sound_field):
         if self.initialized and self.state_service.sound_field != sound_field:
