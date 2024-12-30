@@ -1,4 +1,4 @@
-# Home Assistant to Sony AVR STR-DN1040 & Other AVRs
+# Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850 & Other AVRs
 
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
@@ -16,7 +16,7 @@ Online sources suggest similar commands may work with
 | 2013 | STR-DN1040 |
 | 2012 | STR-DA1800, STR-DA2800, STR-DA5800 |
 
-but these are untested at present.  It's known not to work with STR-DN1030, which doesn't respond to the same commands or send feedback.  
+but most of these are untested at present.  It's known not to work with STR-DN1030, which doesn't respond to the same commands or send feedback.  
 
 For other AVRs, you may need to change the default port during configuration.  By default, the port is 33335, but some online sources suggest ports might be
 
