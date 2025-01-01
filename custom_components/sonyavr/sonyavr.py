@@ -879,27 +879,27 @@ class FeedbackWatcher:
         source_switched = False
         for source, source_feedback in FEEDBACK_SOURCE_MAP.items():
             if source_feedback[0][:6] == data[:6]:
-                _LOGGER.debug("**Source matched %s", source)
-                _LOGGER.debug("**Extra data %s", binascii.hexlify(data[-3:], ":"))
+                _LOGGER.debug("Source matched %s", source)
+                _LOGGER.debug("Extra data %s", binascii.hexlify(data[-3:], ":"))
                 self.state_service.update_source(source)
                 # The command also contains the power and muted states
                 if source_feedback[3] == data[-3:] or source_feedback[6] == data[-3:]:
-                    _LOGGER.debug("**Power Off")
+                    _LOGGER.debug("Power Off")
                     # FEEDBACK_POWER_OFF
                     self.state_service.update_power(False, True)
                 elif source_feedback[1] == data[-3:] or source_feedback[4] == data[-3:]:
-                    _LOGGER.debug("**Power On Mute Off")
+                    _LOGGER.debug("Power On Mute Off")
                     # FEEDBACK_POWER_ON_MUTE_OFF
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(False)
                 elif source_feedback[2] == data[-3:] or source_feedback[5] == data[-3:]:
-                    _LOGGER.debug("**Power On Mute On")
+                    _LOGGER.debug("Power On Mute On")
                     # FEEDBACK_POWER_ON_MUTE_ON
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(True)
                 else:
                     _LOGGER.debug(
-                        "**Unmatched Power/Mute Data %s",
+                        "Unmatched Power/Mute Data %s",
                         binascii.hexlify(data[-3:], ":"),
                     )
                 source_switched = True
@@ -986,7 +986,7 @@ class FeedbackWatcher:
         return False
 
     def debug_data(self, data, prepend_text=""):
-        _LOGGER.info("Debug %s%s", prepend_text, binascii.hexlify(data, ":"))
+        _LOGGER.debug("Debug %s%s", prepend_text, binascii.hexlify(data, ":"))
 
     async def connect(self):
         try:
@@ -1089,7 +1089,7 @@ class FeedbackWatcher:
         try:
             self.writer.close()
             await self.writer.wait_closed()
-            _LOGGER.info("Connection closed")
+            _LOGGER.debug("Connection closed")
         except Exception:
             _LOGGER.error("Cannot close feedback listener connection")
 
