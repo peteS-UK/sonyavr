@@ -29,7 +29,7 @@ from homeassistant.helpers import (
     entity_platform,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.start import async_at_start
+from homeassistant.helpers.start import async_at_started
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,18 +95,21 @@ class SonyAVRDevice(MediaPlayerEntity):
         )
         await self._device.command_service.async_connect()
 
-        # Turn on and off to force the feedback
-        await self._device.async_turn_on()
-        await asyncio.sleep(20)
-        await self._device.async_update_status()
-        await asyncio.sleep(10)
-        await self._device.async_turn_off()
+        async def _inititalise():
+            # Turn on and off to force the feedback
+            await self._device.async_turn_on()
+            await asyncio.sleep(20)
+            await self._device.async_update_status()
+            await asyncio.sleep(10)
+            await self._device.async_turn_off()
+
+        self._hass.async_create_task(_inititalise())
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
         self._device.set_update_cb(self.async_update_callback)
 
-        async_at_start(self._hass, self._async_startup)
+        async_at_started(self._hass, self._async_startup)
 
         # self._config_entry.async_on_unload(async_at_start(self._hass,  self._async_startup))
 
