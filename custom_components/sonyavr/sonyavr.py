@@ -3,7 +3,6 @@ __author__ = "michaelkapuscik"
 __author__ = "petersketch"
 
 import socket
-import time
 
 import logging
 
@@ -157,109 +156,153 @@ FEEDBACK_TIMER_OFF = bytearray([0xFF])
 # byte 5 normally 0x00, but seldom 0x03
 # byte 7 maybe 0 or may copy byte6, so ignore 7
 # source, power_on_mute_off, power_on_mute_on, power_off
+# then repeat powers for 1060
 FEEDBACK_SOURCE_MAP = {
     "bd": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1B, 0x00]),
         bytearray([0x21, 0x00, 0x78]),
         bytearray([0x23, 0x00, 0x76]),
         bytearray([0x20, 0x00, 0x79]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "dvd": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x19, 0x00]),
         bytearray([0x21, 0x00, 0x7C]),
         bytearray([0x23, 0x00, 0x7A]),
         bytearray([0x20, 0x00, 0x7D]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "game": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1C, 0x00]),
         bytearray([0x21, 0x00, 0x7C]),
         bytearray([0x23, 0x00, 0x74]),
         bytearray([0x20, 0x00, 0x77]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "satCaTV": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x16, 0x00]),
         bytearray([0x21, 0x00, 0x82]),
         bytearray([0x23, 0x00, 0x80]),
         bytearray([0x20, 0x00, 0x83]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "video1": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x10, 0x00]),
         bytearray([0x21, 0x00, 0x8E]),
         bytearray([0x23, 0x00, 0x8C]),
         bytearray([0x20, 0x00, 0x8F]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "video2": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x11, 0x00]),
         bytearray([0x21, 0x00, 0x8C]),
         bytearray([0x23, 0x00, 0x8A]),
         bytearray([0x20, 0x00, 0x8D]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "video3": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x12, 0x00]),
         bytearray([0x21, 0x00, 0x8A]),
         bytearray([0x23, 0x00, 0x88]),
         bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "tv": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x1A, 0x00]),
         bytearray([0x21, 0x00, 0x92]),
         bytearray([0x23, 0x00, 0x90]),
         bytearray([0x20, 0x00, 0x93]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "saCd": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x02, 0x00]),
-        bytearray([0x21, 0x00, 0x32]),
+        bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x23, 0x00, 0xA8]),
         bytearray([0x20, 0x00, 0xAB]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "fmTuner": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2E, 0x00]),
         bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x2B, 0x00, 0x48]),
         bytearray([0x28, 0x00, 0x4B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "amTuner": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x2F, 0x00]),
         bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x2B, 0x00, 0x46]),
         bytearray([0x28, 0x00, 0x49]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "bluetooth": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x33, 0x00]),
         bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x23, 0x00, 0x46]),
         bytearray([0x20, 0x00, 0xAB]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "usb": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x34, 0x00]),
         bytearray([0x29, 0x00, 0x3E]),
         bytearray([0x2B, 0x00, 0x3C]),
         bytearray([0x28, 0x00, 0x3F]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "homeNetwork": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3D, 0x00]),
         bytearray([0x29, 0x00, 0x2C]),
         bytearray([0x2B, 0x00, 0x2A]),
         bytearray([0x28, 0x00, 0x2D]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "internetServices": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x3E, 0x00]),
         bytearray([0x21, 0x00, 0x32]),
         bytearray([0x2B, 0x00, 0x28]),
         bytearray([0x28, 0x00, 0x2B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
     "googleCast": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0xFF, 0x00]),
         bytearray([0x21, 0x00, 0xAA]),
         bytearray([0x23, 0x00, 0xA8]),
         bytearray([0x20, 0x00, 0xAB]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
     ],
 }
-# FEEDBACK_POWER_OFF        = bytearray([0x10])
-FEEDBACK_POWER_OFF = bytearray([0x20, 0x00, 0xAB])
-FEEDBACK_POWER_ON_MUTE_OFF = bytearray([0x21, 0x00, 0xAA])
-FEEDBACK_POWER_ON_MUTE_ON = bytearray([0x23, 0x00, 0xA8])
-
 
 FEEDBACK_SOUND_FIELD_MAP = {
     "twoChannelStereo": bytearray([0x02, 0x04, 0xAB, 0x82, 0x00, 0x00]),
@@ -295,6 +338,9 @@ FEEDBACK_FMTUNER_STEREO = bytearray([0x00])
 FEEDBACK_FMTUNER_MONO = bytearray([0x80])
 
 FEEDBACK_VOLUME = bytearray([0x02, 0x06, 0xA8, 0x92, 0x00, 0x03, 0x00])
+# Volume feedback for 1060
+FEEDBACK_VOLUME_1 = bytearray([0x02, 0x06, 0xA8, 0x8B, 0x00, 0x03, 0x00])
+
 
 FEEDBACK_AUTO_STANDBY_ON = bytearray([0x02, 0x03, 0xA8, 0xA4, 0xCC])
 FEEDBACK_AUTO_STANDBY_OFF = bytearray([0x02, 0x03, 0xA8, 0xA4, 0x4C])
@@ -527,26 +573,6 @@ class CommandService:
         self.state_service = state_service
         self.port = port
 
-    def connect(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.device_service.ip, self.port))
-        return s
-
-    def disconnect(self, s):
-        s.close()
-
-    def send_command(self, cmd):
-        if not self.block_sending:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.device_service.ip, self.port))
-            s.send(cmd)
-            s.close()
-            _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-        else:
-            # Wait on this thread or get a segmentation fault!
-            time.sleep(50.0 / 1000.0)
-            # _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-
     async def async_connect(self):
         try:
             self.command_reader, self.command_writer = await asyncio.open_connection(
@@ -591,6 +617,7 @@ class CommandService:
                 await self.command_writer.drain()
                 _LOGGER.debug("Command : %s", ", ".join([hex(byte) for byte in cmd]))
             except Exception:
+                _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
                 self.command_writer.write(cmd)
                 await self.command_writer.drain()
@@ -601,29 +628,8 @@ class CommandService:
                 _LOGGER.critical("Command Socket doesn't exist")
             await asyncio.sleep(50.0 / 1000.0)
 
-    def send_command_2(self, cmd):
-        if not self.block_sending:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.device_service.ip, TCP_PORT_2))
-            s.send(cmd)
-            s.close()
-            _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-        else:
-            # Wait on this thread or get a segmentation fault!
-            time.sleep(50.0 / 1000.0)
-            # _LOGGER.debug("%s", ", ".join([hex(byte) for byte in cmd]))
-
-    def send_command_w(self, cmd):
-        self.send_command(cmd)
-
-    def power_on(self):
-        self.send_command(CMD_POWER_ON)
-
     async def async_power_on(self):
         await self.async_send_command(CMD_POWER_ON)
-
-    def power_off(self):
-        self.send_command(CMD_POWER_OFF)
 
     async def async_power_off(self):
         await self.async_send_command(CMD_POWER_OFF)
@@ -637,26 +643,11 @@ class CommandService:
                 await self.async_power_on()
                 self.state_service.update_power(True)
 
-    def hdmiout_on(self):
-        self.send_command(CMD_HDMIOUT_ON)
-
     async def async_hdmiout_on(self):
         await self.async_send_command(CMD_HDMIOUT_ON)
 
-    def hdmiout_off(self):
-        self.send_command(CMD_HDMIOUT_OFF)
-
     async def async_hdmiout_off(self):
         await self.async_send_command(CMD_HDMIOUT_OFF)
-
-    def toggle_hdmiout(self):
-        if self.initialized:
-            if self.state_service.hdmiout:
-                self.hdmiout_off()
-                self.state_service.update_hdmiout(False)
-            else:
-                self.hdmiout_on()
-                self.state_service.update_hdmiout(True)
 
     async def async_toggle_hdmiout(self):
         if self.initialized:
@@ -666,23 +657,6 @@ class CommandService:
             else:
                 await self.async_hdmiout_on()
                 self.state_service.update_hdmiout(True)
-
-    def set_volume(self, vol):
-        cmd = bytearray(
-            [
-                0x02,
-                0x06,
-                0xA0,
-                0x52,
-                0x00,
-                0x03,
-                0x00,
-                min(vol, self.state_service.volume_max),
-                0x00,
-            ]
-        )
-        self.send_command(cmd)
-        self.state_service.update_volume(vol)
 
     async def async_set_volume(self, vol):
         if self.state_service.volume_model == 3:
@@ -732,11 +706,6 @@ class CommandService:
         await self.async_send_command(cmd)
         self.state_service.update_volume(vol)
 
-    def volume_up(self):
-        target_volume = self.state_service.volume + self.scroll_step_volume
-        if target_volume <= MAX_VOLUME:
-            self.set_volume(None, target_volume)
-
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
         if target_volume <= self.state_service.volume_max:
@@ -744,11 +713,6 @@ class CommandService:
                 await self.async_set_volume(target_volume)
             else:
                 await self.async_send_command(CMD_VOLUME_UP)
-
-    def volume_down(self):
-        target_volume = self.state_service.volume - self.scroll_step_volume
-        if target_volume >= MIN_VOLUME:
-            self.set_volume(None, target_volume)
 
     async def async_volume_down(self):
         target_volume = self.state_service.volume - self.scroll_step_volume
@@ -758,30 +722,15 @@ class CommandService:
             else:
                 await self.async_send_command(CMD_VOLUME_DOWN)
 
-    def mute(self):
-        if self.initialized:
-            self.send_command(CMD_MUTE)
-            self.state_service.update_muted(True)
-
     async def async_mute(self):
         if self.initialized:
             await self.async_send_command(CMD_MUTE)
             self.state_service.update_muted(True)
 
-    def unmute(self):
-        if self.initialized:
-            self.send_command(CMD_UNMUTE)
-            self.state_service.update_muted(False)
-
     async def async_unmute(self):
         if self.initialized:
             await self.async_send_command(CMD_UNMUTE)
             self.state_service.update_muted(False)
-
-    def select_source(self, source):
-        if self.initialized and self.state_service.source != source:
-            self.state_service.update_source(source)
-            self.send_command(CMD_SOURCE_MAP[source])
 
     async def async_select_source(self, source):
         _LOGGER.debug("Select Source %s", source)
@@ -810,11 +759,6 @@ class CommandService:
                 else:
                     await self.async_select_source(SOURCE_NAMES[len(SOURCE_NAMES) - 1])
                     return
-
-    def select_sound_field(self, sound_field):
-        if self.initialized and self.state_service.sound_field != sound_field:
-            self.state_service.update_sound_field(sound_field)
-            self.send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
     async def async_select_sound_field(self, sound_field):
         if self.initialized and self.state_service.sound_field != sound_field:
@@ -847,7 +791,6 @@ class DeviceService:
     logger = logging.getLogger("dev")
 
     def __init__(self):
-
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(0)
         try:
@@ -887,14 +830,16 @@ class FeedbackWatcher:
         await self.writer.wait_closed()
 
     def check_volume(self, data):
-        if FEEDBACK_VOLUME[0:5] == data[0:5]:
+        if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
             if self.state_service.volume_model is None:
                 if data[5] == 1:
                     _LOGGER.debug("Setting Volume Model 1")
                     self.state_service.volume_model = 1
                     self.state_service.volume_min = STR_DA5800ES_MIN_VOLUME
-                    self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
+                    if self.state_service.volume_max == 0:
+                        # Prevent overwrite of configured volume on reload
+                        self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -903,7 +848,9 @@ class FeedbackWatcher:
                     _LOGGER.debug("Setting Volume Model 3")
                     self.state_service.volume_model = 3
                     self.state_service.volume_min = MIN_VOLUME
-                    self.state_service.volume_max = MAX_VOLUME
+                    if self.state_service.volume_max == 0:
+                        # Prevent overwrite of configured volume on reload
+                        self.state_service.volume_max = MAX_VOLUME
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -932,19 +879,29 @@ class FeedbackWatcher:
         source_switched = False
         for source, source_feedback in FEEDBACK_SOURCE_MAP.items():
             if source_feedback[0][:6] == data[:6]:
+                _LOGGER.debug("Source matched %s", source)
+                _LOGGER.debug("Extra data %s", binascii.hexlify(data[-3:], ":"))
                 self.state_service.update_source(source)
                 # The command also contains the power and muted states
-                if source_feedback[3] == data[-3:]:
+                if source_feedback[3] == data[-3:] or source_feedback[6] == data[-3:]:
+                    _LOGGER.debug("Power Off")
                     # FEEDBACK_POWER_OFF
                     self.state_service.update_power(False, True)
-                elif source_feedback[1] == data[-3:]:
+                elif source_feedback[1] == data[-3:] or source_feedback[4] == data[-3:]:
+                    _LOGGER.debug("Power On Mute Off")
                     # FEEDBACK_POWER_ON_MUTE_OFF
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(False)
-                elif source_feedback[2] == data[-3:]:
+                elif source_feedback[2] == data[-3:] or source_feedback[5] == data[-3:]:
+                    _LOGGER.debug("Power On Mute On")
                     # FEEDBACK_POWER_ON_MUTE_ON
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(True)
+                else:
+                    _LOGGER.debug(
+                        "Unmatched Power/Mute Data %s",
+                        binascii.hexlify(data[-3:], ":"),
+                    )
                 source_switched = True
         return source_switched
 
@@ -1029,7 +986,7 @@ class FeedbackWatcher:
         return False
 
     def debug_data(self, data, prepend_text=""):
-        _LOGGER.info("Debug %s%s", prepend_text, binascii.hexlify(data, ":"))
+        _LOGGER.debug("Debug %s%s", prepend_text, binascii.hexlify(data, ":"))
 
     async def connect(self):
         try:
@@ -1132,7 +1089,7 @@ class FeedbackWatcher:
         try:
             self.writer.close()
             await self.writer.wait_closed()
-            _LOGGER.info("Connection closed")
+            _LOGGER.debug("Connection closed")
         except Exception:
             _LOGGER.error("Cannot close feedback listener connection")
 
@@ -1210,8 +1167,10 @@ class SonyAVR:
         await self.command_service.async_unmute()
         await asyncio.sleep(1.0)
         await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+        _LOGGER.debug("Volume Down")
         await asyncio.sleep(1.0)
         await self.command_service.async_send_command(CMD_VOLUME_UP)
+        _LOGGER.debug("Volume Down")
         await asyncio.sleep(1.0)
         await self.command_service.async_source_up()
         await asyncio.sleep(2.0)
@@ -1303,6 +1262,7 @@ class SonyAVR:
         self._sensor_update_cb = cb
 
     async def async_update_status(self):
+        _LOGGER.debug("Updating Initial Status")
         await self.async_poll_state()
 
     async def run_notifier(self):

@@ -59,14 +59,13 @@ def _update_max_volume(sonyavr, value):
 async def options_update_listener(
     hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
-
     _update_max_volume(
         hass.data[DOMAIN][config_entry.entry_id]["sonyavr"],
         config_entry.options[CONF_MAX_VOLUME],
     )
 
     """Handle options update."""
-    await hass.config_entries.async_reload(config_entry.entry_id)
+    # await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def async_unload_entry(
