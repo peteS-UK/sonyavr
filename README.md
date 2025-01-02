@@ -1,10 +1,10 @@
-# Home Assistant to Sony AVR STR-DN1040 & Other AVRs
+# Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850, STR-DN1060 & Other AVRs
 
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 
-This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES and STR-DN850.  
+This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES, STR-DN1060 and STR-DN850.  
 
 Online sources suggest similar commands may work with
 
@@ -12,18 +12,17 @@ Online sources suggest similar commands may work with
 | --- | --- |
 | 2016 | STR-ZA1100ES, STR-ZA2100ES, STR-ZA3100ES, STR-DN810ES, STR-DN1070 |
 | 2015 | STR-DN1060, STR-ZA5000ES |
-| 2014 | STR-ZA1000ES, STR-ZA2000ES, STR-ZA3000ES, STR-DN850, STR-DN1050 |
+| 2014 | STR-ZA1000ES, STR-ZA2000ES, STR-ZA3000ES, STR-DN1050 |
 | 2013 | STR-DN1040 |
 | 2012 | STR-DA1800, STR-DA2800, STR-DA5800 |
 
-but these are untested at present.  It's known not to work with STR-DN1030, which doesn't respond to the same commands or send feedback.  
+but most of these are untested at present.  It's known not to work with STR-DN1030, which doesn't respond to the same commands or send feedback.  
 
 For other AVRs, you may need to change the default port during configuration.  By default, the port is 33335, but some online sources suggest ports might be
 
 | Port | AVR |
 | --- | --- |
 | 8080 | STR-DA1800 |
-| 50001 | STR-DN1060 |
 | 33336 | DN-1070 & CISv2 |
 | 33335 | All Others |
 
