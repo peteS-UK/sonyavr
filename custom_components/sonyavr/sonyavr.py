@@ -833,7 +833,7 @@ class FeedbackWatcher:
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
             if self.state_service.volume_model is None:
-                _LOGGER.critical("Vol Max %s", self.state_service.volume_max)
+                _LOGGER.debug("Vol Max %s", self.state_service.volume_max)
                 if data[5] == 1:
                     _LOGGER.debug("Setting Volume Model 1")
                     self.state_service.volume_model = 1
@@ -841,7 +841,7 @@ class FeedbackWatcher:
                     if self.state_service.volume_max == 0:
                         # Prevent overwrite of configured volume on reload
                         self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
-                        _LOGGER.critical(
+                        _LOGGER.debug(
                             "Vol Model 1 : Initial Max Volume set to %s",
                             self.state_service.volume_max,
                         )
@@ -856,7 +856,7 @@ class FeedbackWatcher:
                     if self.state_service.volume_max == 0:
                         # Prevent overwrite of configured volume on reload
                         self.state_service.volume_max = MAX_VOLUME
-                        _LOGGER.critical(
+                        _LOGGER.debug(
                             "Vol Model 3 : Initial Max Volume set to %s",
                             self.state_service.volume_max,
                         )
