@@ -12,6 +12,12 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,6 +28,17 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_MODEL): cv.string,
         vol.Optional(CONF_PORT, default=33335): cv.string,
+    }
+)
+
+OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required("max_volume"): vol.All(
+            NumberSelector(
+                NumberSelectorConfig(min=-100, max=100, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Coerce(int),
+        ),
     }
 )
 
@@ -86,7 +103,6 @@ class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self) -> None:
         """Initialize options flow."""
-        # self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the options."""
@@ -95,12 +111,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
+            data_schema=self.add_suggested_values_to_schema(
+                OPTIONS_SCHEMA,
                 {
-                    vol.Optional(
-                        "max_volume",
-                        default=self.config_entry.options.get("max_volume"),
-                    ): cv.string
-                }
+                    "max_volume": self.config_entry.options.get("max_volume"),
+                },
             ),
         )

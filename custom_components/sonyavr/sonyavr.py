@@ -833,6 +833,7 @@ class FeedbackWatcher:
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
             if self.state_service.volume_model is None:
+                _LOGGER.critical("Vol Max %s", self.state_service.volume_max)
                 if data[5] == 1:
                     _LOGGER.debug("Setting Volume Model 1")
                     self.state_service.volume_model = 1
@@ -840,6 +841,10 @@ class FeedbackWatcher:
                     if self.state_service.volume_max == 0:
                         # Prevent overwrite of configured volume on reload
                         self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
+                        _LOGGER.critical(
+                            "Vol Model 1 : Initial Max Volume set to %s",
+                            self.state_service.volume_max,
+                        )
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -851,6 +856,10 @@ class FeedbackWatcher:
                     if self.state_service.volume_max == 0:
                         # Prevent overwrite of configured volume on reload
                         self.state_service.volume_max = MAX_VOLUME
+                        _LOGGER.critical(
+                            "Vol Model 3 : Initial Max Volume set to %s",
+                            self.state_service.volume_max,
+                        )
                     self.state_service.volume_range = (
                         self.state_service.volume_max - self.state_service.volume_min
                     )
@@ -1131,9 +1140,10 @@ class SonyAVR:
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
         self.state_service.volume_max = 0
-        self.state_service.volume_range = (
-            self.state_service.volume_max - self.state_service.volume_min
-        )
+        # self.state_service.volume_range = (
+        #    self.state_service.volume_max - self.state_service.volume_min
+        # )
+        self.state_service.volume_range = 1
 
         # if self.feedback_watcher_1 != None:
         #    self.feedback_watcher_1.start()
