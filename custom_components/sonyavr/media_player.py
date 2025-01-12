@@ -93,6 +93,9 @@ class SonyAVRDevice(MediaPlayerEntity):
         self._notifier_task = self._hass.async_create_background_task(
             self._device.run_notifier(), name="sonyavr notifier task"
         )
+        self._ping_task = self._hass.async_create_background_task(
+            self._device.run_ping_watcher(), name="sonyavr ping watcher task"
+        )
         await self._device.command_service.async_connect()
 
         async def _inititalise():
@@ -129,6 +132,12 @@ class SonyAVRDevice(MediaPlayerEntity):
         try:
             await self._device.stop_notifier()
             self._notifier_task.cancel()
+        except Exception:
+            pass
+
+        try:
+            await self._device.stop_ping_watcher()
+            self._ping_task.cancel()
         except Exception:
             pass
 

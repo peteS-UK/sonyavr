@@ -20,7 +20,11 @@ from .const import (
     STR_DA5800ES_MAX_VOLUME,
     STR_DA5800ES_MIN_VOLUME,
     STR_DA5800ES_VOLUME_STEP,
+    CONF_PING_INTERVAL,
 )
+
+from asyncping3 import ping
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1103,6 +1107,52 @@ class FeedbackWatcher:
             _LOGGER.error("Cannot close feedback listener connection")
 
 
+class PingWatcherService:
+    def __init__(self, hass, config_entry, host):
+        self._hass = hass
+        self._config_entry = config_entry
+        self._host = host
+        self._stop = False
+
+    async def start(self):
+        while await ping(self._host, timeout=1) and not self._stop:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+                # Disable the listener
+                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
+                self._stop = True
+                break
+            # Ping succeeded - wait and retry
+            await asyncio.sleep(
+                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+            )
+        # Ping failed, so wait until it succeeds again
+        if not self._stop:
+            _LOGGER.error(
+                "Connectivity lost to %s.  Waiting for availability.", self._host
+            )
+        while not await ping(self._host, timeout=1) and not self._stop:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
+                # Disable the listener
+                self._stop = True
+                break
+            # Ping failed - wait and retry
+            await asyncio.sleep(
+                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+            )
+        # Ping succeeded, so it's back, so reload
+        if not self._stop:
+            _LOGGER.error(
+                "Connectivity re-established with %s.  Reloading configuration",
+                self._host,
+            )
+            await asyncio.sleep(30)
+            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
+
+    async def stop(self):
+        self._stop = True
+
+
 class SonyAVR:
     indicator = None
     device_service = None
@@ -1113,7 +1163,9 @@ class SonyAVR:
 
     logger = logging.getLogger("Class")
 
-    def __init__(self, ip=None, name=None, model=None, port=33335):
+    def __init__(self, hass, config_entry, ip=None, name=None, model=None, port=33335):
+        self._config_entry = config_entry
+        self._hass = hass
         self.device_service = DeviceService()
         self.state_service = StateService()
         self.command_service = CommandService(
@@ -1126,6 +1178,7 @@ class SonyAVR:
             self.command_service,
             port,
         )
+        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
 
         self.initialize_device()
 
@@ -1280,8 +1333,16 @@ class SonyAVR:
         await self.feedback_watcher.run()
 
     async def stop_notifier(self):
-        _LOGGER.debug("Setting up Sony AVR Notify Listener")
+        _LOGGER.debug("Stopping Sony AVR Notify Listener")
         await self.feedback_watcher.stop()
+
+    async def run_ping_watcher(self):
+        _LOGGER.debug("Setting up Ping Watcher")
+        await self.ping_watcher.start()
+
+    async def stop_ping_watcher(self):
+        _LOGGER.debug("Stopping Ping Watcher")
+        await self.ping_watcher.stop()
 
     @property
     def sources(self):

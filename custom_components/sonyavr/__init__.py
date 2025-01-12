@@ -30,6 +30,8 @@ async def async_setup_entry(
     _LOGGER.debug("Adding %s from config", hass_data[CONF_HOST])
 
     sonyavr = SonyAVR(
+        hass,
+        entry,
         hass_data[CONF_HOST],
         hass_data[CONF_NAME],
         hass_data[CONF_MODEL],

@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant import config_entries, core, exceptions
+from homeassistant import config_entries, core
 from homeassistant.const import (
     CONF_HOST,
     CONF_MODEL,
@@ -18,7 +18,7 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
 )
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_PING_INTERVAL, CONF_MAX_VOLUME
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,20 +33,20 @@ CONFIG_SCHEMA = vol.Schema(
 
 OPTIONS_SCHEMA = vol.Schema(
     {
-        vol.Required("max_volume"): vol.All(
+        vol.Optional("max_volume"): vol.All(
             NumberSelector(
                 NumberSelectorConfig(min=-100, max=100, mode=NumberSelectorMode.SLIDER)
             ),
             vol.Coerce(int),
         ),
+        vol.Optional("ping_interval"): vol.All(
+            NumberSelector(
+                NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Coerce(int),
+        ),
     }
 )
-
-
-class SelectError(exceptions.HomeAssistantError):
-    """Error"""
-
-    pass
 
 
 async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
@@ -114,7 +114,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(
                 OPTIONS_SCHEMA,
                 {
-                    "max_volume": self.config_entry.options.get("max_volume"),
+                    CONF_MAX_VOLUME: self.config_entry.options.get(CONF_MAX_VOLUME),
+                    CONF_PING_INTERVAL: self.config_entry.options.get(
+                        CONF_PING_INTERVAL, 60
+                    ),
                 },
             ),
         )
