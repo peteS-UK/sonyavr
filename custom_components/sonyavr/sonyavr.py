@@ -1115,16 +1115,26 @@ class PingWatcherService:
         self._stop = False
 
     async def start(self):
-        while await ping(self._host, timeout=4) and not self._stop:
+        while not self._stop:
             if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
                 # Disable the listener
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 self._stop = True
                 break
-            # Ping succeeded - wait and retry
-            await asyncio.sleep(
-                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
-            )
+            # Ping the AVR
+            _ping = await ping(self._host, timeout=4)
+            if not _ping:
+                # Pause and try again
+                await asyncio.sleep(2)
+                _ping = await ping(self._host, timeout=4)
+            if _ping:
+                # Ping succeeded - wait and retry
+                await asyncio.sleep(
+                    int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+                )
+            else:
+                # Both attempts failed, so break
+                break
         # Ping failed, so wait until it succeeds again
         if not self._stop:
             _LOGGER.error(
