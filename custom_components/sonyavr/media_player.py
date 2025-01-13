@@ -236,8 +236,8 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def volume_level(self):
-        if self._device.volume is None:
-            # 	# device is muted
+        if self._device.volume is None or self._device.volume_range == 0:
+            # 	# device is muted or range isn't yet defined
             return 0.0
         else:
             return float(
