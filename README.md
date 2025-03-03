@@ -45,7 +45,10 @@ Once downloaded either via HACS or manually, restart your Home Assistant server.
 
 ## Configuration
 
-Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the SONY AVR integration.
+Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the SONY AVR integration, or click the shortcut button below (requires My Homeassistant configured).
+
+[![Add Integration to your Home Assistant
+instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=sonyavr)
 
 This will display the configuration page.  
 
