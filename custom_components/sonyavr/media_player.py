@@ -50,6 +50,7 @@ SUPPORT_SONYAVR = (
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.SELECT_SOUND_MODE
+    | MediaPlayerEntityFeature.VOLUME_STEP
 )
 
 
@@ -98,25 +99,28 @@ class SonyAVRDevice(MediaPlayerEntity):
         )
         await self._device.command_service.async_connect()
 
-        async def _inititalise():
-            # Turn on and off to force the feedback
-            await self._device.async_turn_on()
-            await asyncio.sleep(20)
-            await self._device.async_update_status()
-            await asyncio.sleep(10)
-            await self._device.async_turn_off()
+        await asyncio.sleep(1)
 
-        self._hass.async_create_task(_inititalise())
+        if self._device.state_service.power is None:
+            _LOGGER.debug("Power state is uninitialised, so initialising all states")
+            _power_state = await self._device.async_get_power_state()
+
+            # Turn on and off to force the feedback
+            if not _power_state:
+                _LOGGER.debug("_power_state is False, so turning on")
+                await self._device.async_turn_on()
+                await asyncio.sleep(20)
+            await self._device.async_update_status()
+            _LOGGER.debug("Device states initialised")
+            if not _power_state:
+                await asyncio.sleep(1)
+                await self._device.async_turn_off()
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
         self._device.set_update_cb(self.async_update_callback)
 
         async_at_started(self._hass, self._async_startup)
-
-        # self._config_entry.async_on_unload(async_at_start(self._hass,  self._async_startup))
-
-        # self._notifier_task = asyncio.create_task(self._device.run_notifier())
 
     def async_update_callback(self, reason=False):
         """Update the device's state."""
