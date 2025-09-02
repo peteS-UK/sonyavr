@@ -353,7 +353,7 @@ FEEDBACK_AUTO_PHASE_MATCHING_AUTO = bytearray([0x2, 0x4, 0xAB, 0x97, 0x48, 0x2])
 FEEDBACK_AUTO_PHASE_MATCHING_OFF = bytearray([0x2, 0x4, 0xAB, 0x97, 0x48, 0x0])
 
 SOURCE_MENU_MAP = {
-    "bd": "Blueray",
+    "bd": "Blu-ray",
     "dvd": "DVD",
     "game": "Game",
     "satCaTV": "Sat / Cable",
@@ -434,10 +434,10 @@ class StateService:
     # logger = logging.getLogger("sonyavr.state")
 
     states = {
-        "power": True,
+        "power": None,
         "hdmiout": True,
         "volume": LOW_VOLUME,
-        "muted": False,
+        "muted": None,
         "source": None,
         "sound_field": None,
         "pure_direct": False,
@@ -713,6 +713,7 @@ class CommandService:
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
         if target_volume <= self.state_service.volume_max:
+            # Some of the older AVRs require the volume menu to be displayed on the AVR before up and down work, so use direct setting instead
             if self.state_service.volume_model == 3:
                 await self.async_set_volume(target_volume)
             else:
@@ -1203,36 +1204,18 @@ class SonyAVR:
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
         self.state_service.volume_max = 0
-        # self.state_service.volume_range = (
-        #    self.state_service.volume_max - self.state_service.volume_min
-        # )
+
         self.state_service.volume_range = 1
 
-        # if self.feedback_watcher_1 != None:
-        #    self.feedback_watcher_1.start()
-        # if self.feedback_watcher_2 != None:
-        #    self.feedback_watcher_2.start()
-
         self.set_initialized(True)
-
-        # self.feedback_watcher_1.probe_volume()
-        # self.feedback_watcher_1.probe_input()
 
     async def quit(self):
         self.set_initialized(False)
         if self.feedback_watcher is not None:
             self.feedback_watcher.kill()
-        #    self.feedback_watcher_1.join(8)
-        # if self.feedback_watcher_2 != None:
-        #    self.feedback_watcher_2.kill()
-        #    self.feedback_watcher_2.join(8)
 
     def initialize_device(self):
         self.device_service.initialized = True
-
-    def poll_state(self):
-        self.command_service.mute(None)
-        self.command_service.unmute(None)
 
     async def async_poll_state(self):
         await self.command_service.async_mute()
@@ -1335,8 +1318,40 @@ class SonyAVR:
         self._sensor_update_cb = cb
 
     async def async_update_status(self):
-        _LOGGER.debug("Updating Initial Status")
-        await self.async_poll_state()
+        _LOGGER.debug("Updating Initial States")
+        if self.state_service.muted is None:
+            _LOGGER.debug("Initialising Mute State")
+            await self.command_service.async_mute()
+            await asyncio.sleep(1.0)
+            await self.command_service.async_unmute()
+            await asyncio.sleep(1.0)
+        _LOGGER.debug("Initialising Volume State")
+        await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+        await asyncio.sleep(1.0)
+        if self.state_service.volume_model == 1:
+            # With model 3, volume down only works with volume menu active, up is only needed on == 1
+            await self.command_service.async_send_command(CMD_VOLUME_UP)
+            await asyncio.sleep(1.0)
+        if self.state_service.source is None:
+            _LOGGER.debug("Initialising Source State")
+            await self.command_service.async_source_up()
+            await asyncio.sleep(2.0)
+            await self.command_service.async_source_down()
+            await asyncio.sleep(2.0)
+
+    async def async_get_power_state(self):
+        _LOGGER.debug("Getting Power State")
+        await self.command_service.async_send_command(CMD_MUTE)
+        await asyncio.sleep(1.0)
+
+        if self.state_service.muted is None:
+            _LOGGER.debug("No response from AVR, so assuming power is off")
+            return False
+        else:
+            _LOGGER.debug("AVR responded to mute, so is powered on")
+            await self.command_service.async_send_command(CMD_UNMUTE)
+            await asyncio.sleep(1.0)
+            return True
 
     async def run_notifier(self):
         _LOGGER.debug("Setting up Sony AVR Notify Listener")
