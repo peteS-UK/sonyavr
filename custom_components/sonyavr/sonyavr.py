@@ -353,7 +353,7 @@ FEEDBACK_AUTO_PHASE_MATCHING_AUTO = bytearray([0x2, 0x4, 0xAB, 0x97, 0x48, 0x2])
 FEEDBACK_AUTO_PHASE_MATCHING_OFF = bytearray([0x2, 0x4, 0xAB, 0x97, 0x48, 0x0])
 
 SOURCE_MENU_MAP = {
-    "bd": "Blueray",
+    "bd": "Blu-ray",
     "dvd": "DVD",
     "game": "Game",
     "satCaTV": "Sat / Cable",
