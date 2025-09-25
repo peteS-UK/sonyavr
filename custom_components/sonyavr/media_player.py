@@ -5,7 +5,7 @@ import asyncio
 
 from .const import DOMAIN
 
-from .const import SERVICE_SEND_COMMAND
+from .const import SERVICE_SEND_COMMAND, SERVICE_UPDATE_STATE
 
 import voluptuous as vol
 
@@ -74,6 +74,11 @@ async def async_setup_entry(
         SERVICE_SEND_COMMAND,
         {vol.Required("Command"): cv.string, vol.Optional("Value"): cv.string},
         SonyAVRDevice.send_command.__name__,
+    )
+    platform.async_register_entity_service(
+        SERVICE_UPDATE_STATE,
+        {},
+        SonyAVRDevice.update_status.__name__,
     )
 
 
@@ -282,3 +287,7 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     async def send_command(self, Command, Value=None):
         await self._device.async_send_command(Command, Value)
+
+    async def update_status(self):
+        _LOGGER.debug("Updating status")
+        await self._device.async_update_status()

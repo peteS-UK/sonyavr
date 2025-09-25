@@ -8,8 +8,8 @@ send_command:
   fields:
     Command:
       name: Command
-      description: "The Command to send to the AVR."
-      required: true 
+      description: 'The Command to send to the AVR.'
+      required: true
       selector:
         select:
           multiple: false
@@ -28,13 +28,15 @@ send_command:
             - Byte Array String
     Value:
       name: Command Value
-      description: "The value associated with the command."
+      description: 'The value associated with the command.'
       required: false
       selector:
         text:
 
-discover:
-  name: Discover Sony AVR 
-  description: Discover Sony AVR on the network and update states
-
-
+update_state:
+  name: Update Sony AVR
+  description: Force an update of the Home Assistant states
+  target:
+    entity:
+      integration: sonyavr
+      domain: media_player
