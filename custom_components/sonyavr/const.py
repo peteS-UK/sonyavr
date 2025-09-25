@@ -1,4 +1,4 @@
-CONF_DISCOVER = "discover"
+SERVICE_UPDATE_STATE = "update_state"
 CONF_MANUAL = "manual"
 CONF_MAX_VOLUME = "max_volume"
 CONF_PING_INTERVAL = "ping_interval"
