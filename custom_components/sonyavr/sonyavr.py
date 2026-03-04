@@ -429,7 +429,6 @@ FM_TUNER_MENU_MAP = {
 
 
 class StateService:
-    initialized = False
 
     # logger = logging.getLogger("sonyavr.state")
 
@@ -467,17 +466,13 @@ class StateService:
         "auto_phase_matching": True,
     }
 
-    def __getattr__(self, key):
-        try:
-            return self.states[key]
-        except KeyError as key:
-            raise AttributeError(key)
-
-    def __setattr_(self, key, value):
-        try:
-            self.states[key] = value
-        except KeyError as key:
-            raise AttributeError(key)
+    def __init__(self):
+        self.initialized = False
+        self.volume_model: int | None = None
+        self.volume_min: float = 0
+        self.volume_max: float = 0
+        self.volume_step: int | None = None
+        self.volume_range: float
 
     def update_power(self, power, state_only=False):
         if self.initialized:
@@ -562,20 +557,19 @@ class StateService:
 
 
 class CommandService:
-    device_service = None
-    state_service = None
-    initialized = False
-    block_sending = False
-
-    scroll_step_volume = 1
 
     logger = logging.getLogger("cmd")
     data_logger = logging.getLogger("send")
 
     def __init__(self, device_service, state_service, port):
-        self.device_service = device_service
-        self.state_service = state_service
-        self.port = port
+        self.device_service: DeviceService = device_service
+        self.state_service: StateService = state_service
+        self.port: int = port
+        self.initialized = False
+        self.block_sending = False
+        self.scroll_step_volume: float = 1.0
+
+        self.scroll_step_volume = 1
 
     async def async_connect(self):
         try:
@@ -674,7 +668,7 @@ class CommandService:
                     0x00,
                     0x03,
                     0x00,
-                    min(int(vol), self.state_service.volume_max),
+                    min(int(vol), int(self.state_service.volume_max)),
                     0x00,
                 ]
             )
@@ -770,28 +764,8 @@ class CommandService:
             self.state_service.update_sound_field(sound_field)
             await self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
-    def set_fmtuner(self, fmtuner):
-        self.send_command(CMD_FMTUNER[fmtuner])
-
-    def fmtuner_preset_up(self):
-        if self.initialized:
-            if self.state_service.source != "fmTuner":
-                self.send_command(CMD_SOURCE_MAP["fmTuner"])
-            self.send_command(CMD_FMTUNER_PRESET_UP)
-
-    def fmtuner_preset_down(self):
-        if self.initialized:
-            if self.state_service.source != "fmTuner":
-                self.send_command(CMD_SOURCE_MAP["fmTuner"])
-            self.send_command(CMD_FMTUNER_PRESET_DOWN)
-
 
 class DeviceService:
-    initialized = False
-    my_ip = None
-    my_network = None
-
-    ip = None
 
     logger = logging.getLogger("dev")
 
@@ -806,27 +780,26 @@ class DeviceService:
             _ip = "127.0.0.1"
         finally:
             s.close()
+
         self.my_ip = _ip
         _LOGGER.debug(f"IP: {self.my_ip}")
+        self.initialized = False
+
+        self.ip = None
 
 
 class FeedbackWatcher:
-    device_service = None
-    state_service = None
-    command_service = None
-    ended = False
-    # socket = None
-    port = None
 
     logger = logging.getLogger("sonyavr.feed")
     data_logger = logging.getLogger("sonyavr.recv")
 
     def __init__(self, sony_avr, device_service, state_service, command_service, port):
-        self.device_service = device_service
-        self.state_service = state_service
-        self.command_service = command_service
-        self.sony_avr = sony_avr
-        self.port = port
+        self.device_service: DeviceService = device_service
+        self.state_service: StateService = state_service
+        self.command_service: CommandService = command_service
+        self.sony_avr: SonyAVR = sony_avr
+        self.port: int = port
+        self.ended = False
 
     async def kill(self):
         self.ended = True
@@ -834,7 +807,7 @@ class FeedbackWatcher:
         self.writer.close()
         await self.writer.wait_closed()
 
-    def check_volume(self, data):
+    async def check_volume(self, data):
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
             if self.state_service.volume_model is None:
@@ -883,7 +856,9 @@ class FeedbackWatcher:
                 self.state_service.update_volume(vol)
             elif vol == self.state_service.volume_max + 1:
                 self.command_service.block_sending = False
-                self.command_service.async_set_volume(self.state_service.volume_max)
+                await self.command_service.async_set_volume(
+                    self.state_service.volume_max
+                )
                 self.state_service.volume = self.state_service.volume_max
                 self.command_service.block_sending = True
             return True
@@ -1078,7 +1053,7 @@ class FeedbackWatcher:
                     and not self.check_pure_direct(data)
                     and not self.check_sound_optimizer(data)
                     and not self.check_fmtuner(data)
-                    and not self.check_volume(data)
+                    and not await self.check_volume(data)
                     and not self.check_auto_standby(data)
                     and not self.check_auto_phase_matching(data)
                     and not self.ended
@@ -1091,9 +1066,7 @@ class FeedbackWatcher:
                         self.sony_avr._remote_update_cb()
                     if self.sony_avr._sensor_update_cb:
                         self.sony_avr._sensor_update_cb()
-            # except socket.timeout as e:
-            # 	_LOGGER.debug("Timeout: reconnecting...")
-            # 	self.reconnect()
+
             except Exception:
                 _LOGGER.exception("Failed to process data: reconnecting...")
                 await self.reconnect()
@@ -1165,11 +1138,6 @@ class PingWatcherService:
 
 
 class SonyAVR:
-    indicator = None
-    device_service = None
-    feedback_watcher = None
-    feedback_watcher_2 = None
-    command_service = None
     initialized = False
 
     logger = logging.getLogger("Class")
@@ -1177,12 +1145,12 @@ class SonyAVR:
     def __init__(self, hass, config_entry, ip=None, name=None, model=None, port=33335):
         self._config_entry = config_entry
         self._hass = hass
-        self.device_service = DeviceService()
-        self.state_service = StateService()
-        self.command_service = CommandService(
+        self.device_service: DeviceService = DeviceService()
+        self.state_service: StateService = StateService()
+        self.command_service: CommandService = CommandService(
             self.device_service, self.state_service, port
         )
-        self.feedback_watcher = FeedbackWatcher(
+        self.feedback_watcher: FeedbackWatcher = FeedbackWatcher(
             self,
             self.device_service,
             self.state_service,
@@ -1212,7 +1180,7 @@ class SonyAVR:
     async def quit(self):
         self.set_initialized(False)
         if self.feedback_watcher is not None:
-            self.feedback_watcher.kill()
+            await self.feedback_watcher.kill()
 
     def initialize_device(self):
         self.device_service.initialized = True

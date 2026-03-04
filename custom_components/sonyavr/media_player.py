@@ -93,7 +93,7 @@ class SonyAVRDevice(MediaPlayerEntity):
             "-", "_"
         ).replace(":", "_")
         self._device_class = "receiver"
-        self._notifier_task = None
+        self._notifier_task: asyncio.Task | None = None
 
     async def _async_startup(self, loop):
         self._notifier_task = self._hass.async_create_background_task(
@@ -140,13 +140,28 @@ class SonyAVRDevice(MediaPlayerEntity):
 
         try:
             await self._device.stop_notifier()
-            self._notifier_task.cancel()
+
+            if self._notifier_task is not None:
+                self._notifier_task.cancel()
+                try:
+                    await self._notifier_task
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Notifier task cancelled")
+                self._notifier_task = None
+
         except Exception:
             pass
 
         try:
             await self._device.stop_ping_watcher()
-            self._ping_task.cancel()
+
+            if self._ping_task is not None:
+                self._ping_task.cancel()
+                try:
+                    await self._ping_task
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Ping Watcher task cancelled")
+                self._ping_task = None
         except Exception:
             pass
 
