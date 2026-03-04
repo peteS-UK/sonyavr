@@ -473,6 +473,21 @@ class StateService:
         self.volume_max: float = 0
         self.volume_step: int | None = None
         self.volume_range: float
+        self.power: bool | None = None
+        self.muted: bool | None = None
+        self.hdmiout: bool | None = None
+        self.source: str | None = None
+        self.sound_field: str | None = None
+        self.pure_direct: bool | None = None
+        self.sound_optimizer: str | None = None
+        self.timer: bool = False
+        self.timer_hours: int = 0
+        self.timer_minutes: int = 0
+        self.fmtuner: int | None = None
+        self.fmtunerstereo: bool | None = None
+        self.fmtunerfreq: float | None = None
+        self.auto_standby: bool | None = None
+        self.auto_phase_matching: bool | None = None
 
     def update_power(self, power, state_only=False):
         if self.initialized:
