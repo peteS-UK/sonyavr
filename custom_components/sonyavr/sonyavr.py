@@ -488,6 +488,7 @@ class StateService:
         self.fmtunerfreq: float | None = None
         self.auto_standby: bool | None = None
         self.auto_phase_matching: bool | None = None
+        self.volume: float = 0
 
     def update_power(self, power, state_only=False):
         if self.initialized:
