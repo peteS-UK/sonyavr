@@ -662,6 +662,8 @@ class CommandService:
         self.scroll_step_volume: float = 1.0
 
         self.scroll_step_volume = 1
+        self.command_writer: asyncio.StreamWriter | None = None
+        self.command_reader: asyncio.StreamReader | None = None
 
     async def async_connect(self):
         try:
@@ -695,8 +697,9 @@ class CommandService:
 
     async def async_disconnect(self):
         try:
-            self.command_writer.close()
-            await self.command_writer.wait_closed()
+            if self.command_writer is not None:
+                self.command_writer.close()
+                await self.command_writer.wait_closed()
         except Exception:
             _LOGGER.error("Cannot disconnect from command socket")
 
@@ -709,8 +712,9 @@ class CommandService:
             except Exception:
                 _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
-                self.command_writer.write(cmd)
-                await self.command_writer.drain()
+                if self.command_writer is not None:
+                    self.command_writer.write(cmd)
+                    await self.command_writer.drain()
         else:
             if self.block_sending:
                 _LOGGER.debug("Blocked")
