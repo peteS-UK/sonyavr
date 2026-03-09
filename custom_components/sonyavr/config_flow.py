@@ -13,12 +13,13 @@ from homeassistant.const import (
 from homeassistant.core import callback
 
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
 )
 
-from .const import DOMAIN, CONF_PING_INTERVAL, CONF_MAX_VOLUME
+from .const import DOMAIN, CONF_PING_INTERVAL, CONF_MAX_VOLUME, CONF_POWER_CYCLE_INIT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ OPTIONS_SCHEMA = vol.Schema(
             ),
             vol.Coerce(int),
         ),
+        vol.Optional(CONF_POWER_CYCLE_INIT, default=True): BooleanSelector(),
     }
 )
 
@@ -117,6 +119,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_MAX_VOLUME: self.config_entry.options.get(CONF_MAX_VOLUME),
                     CONF_PING_INTERVAL: self.config_entry.options.get(
                         CONF_PING_INTERVAL, 60
+                    ),
+                    CONF_POWER_CYCLE_INIT: self.config_entry.options.get(
+                        CONF_POWER_CYCLE_INIT, True
                     ),
                 },
             ),
