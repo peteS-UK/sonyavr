@@ -667,10 +667,21 @@ class CommandService:
 
     async def async_connect(self):
         try:
-            self.command_reader, self.command_writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            # Wrap open_connection in asyncio.wait_for
+            self.command_reader, self.command_writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
+            )
+
+        except asyncio.TimeoutError:
+            # This is specifically raised if the 5.0 seconds expire
+            _LOGGER.critical(
+                "Connection to %s:%d timed out after 5 seconds.",
+                self.device_service.ip,
+                self.port,
             )
         except IOError as e:
+            # Catches active rejections like "Connection Refused"
             _LOGGER.critical(
                 "Cannot connect to command socket %d: %s", e.errno, e.strerror
             )
@@ -680,20 +691,8 @@ class CommandService:
             )
 
     async def async_reconnect(self):
-        try:
-            await self.async_disconnect()
-        except Exception:
-            pass
-        try:
-            await self.async_connect()
-        except IOError as e:
-            _LOGGER.critical(
-                "Cannot connect to command socket %d: %s", e.errno, e.strerror
-            )
-        except Exception:
-            _LOGGER.critical(
-                "Unknown error on command socket connection %s", sys.exc_info()[0]
-            )
+        await self.async_disconnect()
+        await self.async_connect()
 
     async def async_disconnect(self):
         try:
@@ -702,6 +701,10 @@ class CommandService:
                 await self.command_writer.wait_closed()
         except Exception:
             _LOGGER.error("Cannot disconnect from command socket")
+        finally:
+            # FIX: Prevent stale references
+            self.command_writer = None
+            self.command_reader = None
 
     async def async_send_command(self, cmd):
         if not self.block_sending and self.command_writer is not None:
@@ -712,13 +715,22 @@ class CommandService:
             except Exception:
                 _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
-                await asyncio.sleep(1)
+
                 if self.command_writer is not None:
-                    _LOGGER.debug(
-                        "Resending command : %s", ", ".join([hex(byte) for byte in cmd])
+                    try:
+                        _LOGGER.debug(
+                            "Resending command : %s",
+                            ", ".join([hex(byte) for byte in cmd]),
+                        )
+                        self.command_writer.write(cmd)
+                        await self.command_writer.drain()
+                    except Exception as e:
+                        _LOGGER.error("Resend failed after reconnect: %s", e)
+                else:
+                    _LOGGER.error(
+                        "Could not reconnect. Command %s dropped.",
+                        ", ".join([hex(byte) for byte in cmd]),
                     )
-                    self.command_writer.write(cmd)
-                    await self.command_writer.drain()
         else:
             if self.block_sending:
                 _LOGGER.debug("Blocked")
@@ -1079,10 +1091,17 @@ class FeedbackWatcher:
 
     async def connect(self):
         try:
-            self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
             )
             self._connected = True
+        except asyncio.TimeoutError:
+            _LOGGER.critical(
+                "Connection to %s:%d timed out after 5 seconds.",
+                self.device_service.ip,
+                self.port,
+            )
         except IOError as e:
             _LOGGER.critical(
                 "Cannot create feedback listener connection %d: %s", e.errno, e.strerror
@@ -1101,10 +1120,10 @@ class FeedbackWatcher:
             self.writer.close()
             await self.writer.wait_closed()
 
-            self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
             )
-
             self.command_service.block_sending = False
             _LOGGER.error("Reconnected")
         except IOError as e:
