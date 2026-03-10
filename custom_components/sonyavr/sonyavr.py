@@ -712,7 +712,11 @@ class CommandService:
             except Exception:
                 _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
+                await asyncio.sleep(1)
                 if self.command_writer is not None:
+                    _LOGGER.debug(
+                        "Resending command : %s", ", ".join([hex(byte) for byte in cmd])
+                    )
                     self.command_writer.write(cmd)
                     await self.command_writer.drain()
         else:
