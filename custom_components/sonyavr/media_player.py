@@ -66,7 +66,7 @@ async def async_setup_entry(
 
     sonyavr = config["sonyavr"]
 
-    async_add_entities([SonyAVRDevice(sonyavr, hass, config_entry)])
+    async_add_entities([SonyAVRDevice(sonyavr, hass)])
 
     # Register entity services
     platform = entity_platform.async_get_current_platform()
@@ -85,10 +85,9 @@ async def async_setup_entry(
 class SonyAVRDevice(MediaPlayerEntity):
     # Representation of a Sony AVR
 
-    def __init__(self, device, hass, config_entry):
+    def __init__(self, device, hass):
         self._device = device
         self._hass = hass
-        self._config_entry = config_entry
         self._entity_id = "media_player.sonyavr"
         self._unique_id = "sonyavr_" + self._device.name.replace(" ", "_").replace(
             "-", "_"
@@ -110,7 +109,7 @@ class SonyAVRDevice(MediaPlayerEntity):
         if self._device.state_service.power is None:
             _LOGGER.debug("Power state is uninitialised, so initialising all states")
             _power_state = await self._device.async_get_power_state()
-            _power_cycle = self._config_entry.options.get(CONF_POWER_CYCLE_INIT, True)
+            _power_cycle = self.config_entry.options.get(CONF_POWER_CYCLE_INIT, True)
 
             # Turn on and off to force the feedback
             if not _power_state and _power_cycle:
