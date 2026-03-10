@@ -26,7 +26,8 @@
         "title": "AVR Configuration",
         "data": {
           "max_volume": "Maximum Allowed Volume",
-          "ping_interval": "Number of seconds between connectivity check pings.  0 to disable"
+          "ping_interval": "Number of seconds between connectivity check pings.  0 to disable",
+          "initialize_by_power_cycle": "Initialize by Power Cycle on HA Restart"
         },
         "description": "Configuration Options for AVR"
       }

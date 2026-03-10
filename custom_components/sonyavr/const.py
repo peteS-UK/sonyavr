@@ -2,6 +2,7 @@ SERVICE_UPDATE_STATE = "update_state"
 CONF_MANUAL = "manual"
 CONF_MAX_VOLUME = "max_volume"
 CONF_PING_INTERVAL = "ping_interval"
+CONF_POWER_CYCLE_INIT = "initialize_by_power_cycle"
 
 DOMAIN = "sonyavr"
 DEFAULT_NAME = "SONY AVR"
