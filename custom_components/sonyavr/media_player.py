@@ -5,7 +5,7 @@ import asyncio
 
 from .const import DOMAIN
 
-from .const import SERVICE_SEND_COMMAND, SERVICE_UPDATE_STATE
+from .const import SERVICE_SEND_COMMAND, SERVICE_UPDATE_STATE, CONF_POWER_CYCLE_INIT
 
 import voluptuous as vol
 
@@ -66,7 +66,7 @@ async def async_setup_entry(
 
     sonyavr = config["sonyavr"]
 
-    async_add_entities([SonyAVRDevice(sonyavr, hass)])
+    async_add_entities([SonyAVRDevice(sonyavr, config_entry)])
 
     # Register entity services
     platform = entity_platform.async_get_current_platform()
@@ -85,21 +85,21 @@ async def async_setup_entry(
 class SonyAVRDevice(MediaPlayerEntity):
     # Representation of a Sony AVR
 
-    def __init__(self, device, hass):
+    def __init__(self, device, config_entry):
         self._device = device
-        self._hass = hass
+        self._config_entry = config_entry
         self._entity_id = "media_player.sonyavr"
         self._unique_id = "sonyavr_" + self._device.name.replace(" ", "_").replace(
             "-", "_"
         ).replace(":", "_")
         self._device_class = "receiver"
-        self._notifier_task = None
+        self._notifier_task: asyncio.Task | None = None
 
     async def _async_startup(self, loop):
-        self._notifier_task = self._hass.async_create_background_task(
+        self._notifier_task = self.hass.async_create_background_task(
             self._device.run_notifier(), name="sonyavr notifier task"
         )
-        self._ping_task = self._hass.async_create_background_task(
+        self._ping_task = self.hass.async_create_background_task(
             self._device.run_ping_watcher(), name="sonyavr ping watcher task"
         )
         await self._device.command_service.async_connect()
@@ -109,15 +109,16 @@ class SonyAVRDevice(MediaPlayerEntity):
         if self._device.state_service.power is None:
             _LOGGER.debug("Power state is uninitialised, so initialising all states")
             _power_state = await self._device.async_get_power_state()
+            _power_cycle = self._config_entry.options.get(CONF_POWER_CYCLE_INIT, True)
 
             # Turn on and off to force the feedback
-            if not _power_state:
+            if not _power_state and _power_cycle:
                 _LOGGER.debug("_power_state is False, so turning on")
                 await self._device.async_turn_on()
                 await asyncio.sleep(20)
             await self._device.async_update_status()
             _LOGGER.debug("Device states initialised")
-            if not _power_state:
+            if not _power_state and _power_cycle:
                 await asyncio.sleep(1)
                 await self._device.async_turn_off()
 
@@ -125,7 +126,7 @@ class SonyAVRDevice(MediaPlayerEntity):
         """Subscribe to device events."""
         self._device.set_update_cb(self.async_update_callback)
 
-        async_at_started(self._hass, self._async_startup)
+        async_at_started(self.hass, self._async_startup)
 
     def async_update_callback(self, reason=False):
         """Update the device's state."""
@@ -140,13 +141,28 @@ class SonyAVRDevice(MediaPlayerEntity):
 
         try:
             await self._device.stop_notifier()
-            self._notifier_task.cancel()
+
+            if self._notifier_task is not None:
+                self._notifier_task.cancel()
+                try:
+                    await self._notifier_task
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Notifier task cancelled")
+                self._notifier_task = None
+
         except Exception:
             pass
 
         try:
             await self._device.stop_ping_watcher()
-            self._ping_task.cancel()
+
+            if self._ping_task is not None:
+                self._ping_task.cancel()
+                try:
+                    await self._ping_task
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Ping Watcher task cancelled")
+                self._ping_task = None
         except Exception:
             pass
 

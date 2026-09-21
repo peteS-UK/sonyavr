@@ -44,6 +44,10 @@ SOURCE_NAMES = [
     "video1",
     "video2",
     "video3",
+    "video4",
+    "md",
+    "phono",
+    "multi",
     "tv",
     "saCd",
     "fmTuner",
@@ -65,6 +69,13 @@ SOUND_FIELD_NAMES = [
         "stadium",
         "sports",
         "portableAudio",
+        "movieheight",
+        "pliizheight",
+        "neoxcinema",
+        "vocalheight",
+        "neo6music",
+        "neoxgame",
+        "pliizmusic",
     ],
 ]
 
@@ -77,6 +88,10 @@ CMD_SOURCE_MAP = {
     "video1": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x10, 0x00]),
     "video2": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x11, 0x00]),
     "video3": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x12, 0x00]),
+    "video4": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x13, 0x00]),
+    "md": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x04, 0x00]),
+    "phono": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x01, 0x00]),
+    "multi": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x20, 0x00]),
     "tv": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1A, 0x00]),
     "saCd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x02, 0x00]),
     # "hdmi1":              bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x21, 0x00]),
@@ -126,6 +141,13 @@ CMD_SOUND_FIELD_MAP = {
     "stadium": bytearray([0x02, 0x03, 0xA3, 0x42, 0x1B, 0x00]),
     "sports": bytearray([0x02, 0x03, 0xA3, 0x42, 0x20, 0x00]),
     "portableAudio": bytearray([0x02, 0x03, 0xA3, 0x42, 0x30, 0x00]),
+    "movieheight": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3B, 0x00]),
+    "pliizheight": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3C, 0x00]),
+    "neoxcinema": bytearray([0x02, 0x03, 0xA3, 0x42, 0x35, 0x00]),
+    "neoxmusic": bytearray([0x02, 0x03, 0xA3, 0x42, 0x36, 0x00]),
+    "neoxgame": bytearray([0x02, 0x03, 0xA3, 0x42, 0x37, 0x00]),
+    "vocalheight": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3A, 0x00]),
+    "pliizmusic": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3D, 0x00]),
 }
 
 # not working ? only preset up and down are working currently
@@ -218,6 +240,42 @@ FEEDBACK_SOURCE_MAP = {
     ],
     "video3": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x12, 0x00]),
+        bytearray([0x21, 0x00, 0x8A]),
+        bytearray([0x23, 0x00, 0x88]),
+        bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
+    "video4": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x13, 0x00]),
+        bytearray([0x21, 0x00, 0x8A]),
+        bytearray([0x23, 0x00, 0x88]),
+        bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
+    "md": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x04, 0x00]),
+        bytearray([0x21, 0x00, 0x8A]),
+        bytearray([0x23, 0x00, 0x88]),
+        bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
+    "phono": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x01, 0x00]),
+        bytearray([0x21, 0x00, 0x8A]),
+        bytearray([0x23, 0x00, 0x88]),
+        bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
+    "multi": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x20, 0x00]),
         bytearray([0x21, 0x00, 0x8A]),
         bytearray([0x23, 0x00, 0x88]),
         bytearray([0x20, 0x00, 0x8B]),
@@ -326,6 +384,13 @@ FEEDBACK_SOUND_FIELD_MAP = {
     "stadium": bytearray([0x02, 0x04, 0xAB, 0x82, 0x1B, 0x00]),
     "sports": bytearray([0x02, 0x04, 0xAB, 0x82, 0x20, 0x00]),
     "portableAudio": bytearray([0x02, 0x04, 0xAB, 0x82, 0x30, 0x00]),
+    "movieheight": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3B, 0x00]),
+    "pliizheight": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3C, 0x00]),
+    "neoxcinema": bytearray([0x02, 0x04, 0xAB, 0x82, 0x35, 0x00]),
+    "neoxmusic": bytearray([0x02, 0x04, 0xAB, 0x82, 0x36, 0x00]),
+    "neoxgame": bytearray([0x02, 0x04, 0xAB, 0x82, 0x37, 0x00]),
+    "vocalheight": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3A, 0x00]),
+    "pliizmusic": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3D, 0x00]),
 }
 
 FEEDBACK_PURE_DIRECT_ON = bytearray([0x02, 0x03, 0xAB, 0x98, 0x01])
@@ -360,6 +425,10 @@ SOURCE_MENU_MAP = {
     "video1": "Video 1",
     "video2": "Video 2",
     "video3": "Video 3",
+    "video4": "Video 4",
+    "md": "MD/Tape",
+    "phono": "Phono",
+    "multi": "Multi In",
     "tv": "TV",
     "saCd": "CD",
     "fmTuner": "FM Tuner",
@@ -390,6 +459,13 @@ SOUND_FIELD_MENU_MAP = {
     "stadium": "Stadium",
     "sports": "Sports",
     "portableAudio": "Portable Audio",
+    "movieheight": "Movie Height",
+    "pliizheight": "PLIIz Height",
+    "neoxcinema": "Neo:X Cinema",
+    "neoxmusic": "Neo:X Music",
+    "neoxgame": "Neo:X Game",
+    "vocalheight": "Vocal Height",
+    "pliizmusic": "PLIIz Height Music",
 }
 
 SOUND_OPTIMIZER_MENU_MAP = {"off": "Off", "normal": "Normal", "low": "Low"}
@@ -429,7 +505,6 @@ FM_TUNER_MENU_MAP = {
 
 
 class StateService:
-    initialized = False
 
     # logger = logging.getLogger("sonyavr.state")
 
@@ -467,17 +542,29 @@ class StateService:
         "auto_phase_matching": True,
     }
 
-    def __getattr__(self, key):
-        try:
-            return self.states[key]
-        except KeyError as key:
-            raise AttributeError(key)
-
-    def __setattr_(self, key, value):
-        try:
-            self.states[key] = value
-        except KeyError as key:
-            raise AttributeError(key)
+    def __init__(self):
+        self.initialized = False
+        self.volume_model: int | None = None
+        self.volume_min: float = 0
+        self.volume_max: float = 0
+        self.volume_step: int | None = None
+        self.volume_range: float
+        self.power: bool | None = None
+        self.muted: bool | None = None
+        self.hdmiout: bool | None = None
+        self.source: str | None = None
+        self.sound_field: str | None = None
+        self.pure_direct: bool | None = None
+        self.sound_optimizer: str | None = None
+        self.timer: bool = False
+        self.timer_hours: int = 0
+        self.timer_minutes: int = 0
+        self.fmtuner: int | None = None
+        self.fmtunerstereo: bool | None = None
+        self.fmtunerfreq: float | None = None
+        self.auto_standby: bool | None = None
+        self.auto_phase_matching: bool | None = None
+        self.volume: float = 0
 
     def update_power(self, power, state_only=False):
         if self.initialized:
@@ -562,27 +649,39 @@ class StateService:
 
 
 class CommandService:
-    device_service = None
-    state_service = None
-    initialized = False
-    block_sending = False
-
-    scroll_step_volume = 1
 
     logger = logging.getLogger("cmd")
     data_logger = logging.getLogger("send")
 
     def __init__(self, device_service, state_service, port):
-        self.device_service = device_service
-        self.state_service = state_service
-        self.port = port
+        self.device_service: DeviceService = device_service
+        self.state_service: StateService = state_service
+        self.port: int = port
+        self.initialized = False
+        self.block_sending = False
+        self.scroll_step_volume: float = 1.0
+
+        self.scroll_step_volume = 1
+        self.command_writer: asyncio.StreamWriter | None = None
+        self.command_reader: asyncio.StreamReader | None = None
 
     async def async_connect(self):
         try:
-            self.command_reader, self.command_writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            # Wrap open_connection in asyncio.wait_for
+            self.command_reader, self.command_writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
+            )
+
+        except asyncio.TimeoutError:
+            # This is specifically raised if the 5.0 seconds expire
+            _LOGGER.critical(
+                "Connection to %s:%d timed out after 5 seconds.",
+                self.device_service.ip,
+                self.port,
             )
         except IOError as e:
+            # Catches active rejections like "Connection Refused"
             _LOGGER.critical(
                 "Cannot connect to command socket %d: %s", e.errno, e.strerror
             )
@@ -592,27 +691,20 @@ class CommandService:
             )
 
     async def async_reconnect(self):
-        try:
-            await self.async_disconnect()
-        except Exception:
-            pass
-        try:
-            await self.async_connect()
-        except IOError as e:
-            _LOGGER.critical(
-                "Cannot connect to command socket %d: %s", e.errno, e.strerror
-            )
-        except Exception:
-            _LOGGER.critical(
-                "Unknown error on command socket connection %s", sys.exc_info()[0]
-            )
+        await self.async_disconnect()
+        await self.async_connect()
 
     async def async_disconnect(self):
         try:
-            self.command_writer.close()
-            await self.command_writer.wait_closed()
+            if self.command_writer is not None:
+                self.command_writer.close()
+                await self.command_writer.wait_closed()
         except Exception:
             _LOGGER.error("Cannot disconnect from command socket")
+        finally:
+            # FIX: Prevent stale references
+            self.command_writer = None
+            self.command_reader = None
 
     async def async_send_command(self, cmd):
         if not self.block_sending and self.command_writer is not None:
@@ -623,8 +715,22 @@ class CommandService:
             except Exception:
                 _LOGGER.error("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
-                self.command_writer.write(cmd)
-                await self.command_writer.drain()
+
+                if self.command_writer is not None:
+                    try:
+                        _LOGGER.debug(
+                            "Resending command : %s",
+                            ", ".join([hex(byte) for byte in cmd]),
+                        )
+                        self.command_writer.write(cmd)
+                        await self.command_writer.drain()
+                    except Exception as e:
+                        _LOGGER.error("Resend failed after reconnect: %s", e)
+                else:
+                    _LOGGER.error(
+                        "Could not reconnect. Command %s dropped.",
+                        ", ".join([hex(byte) for byte in cmd]),
+                    )
         else:
             if self.block_sending:
                 _LOGGER.debug("Blocked")
@@ -674,7 +780,7 @@ class CommandService:
                     0x00,
                     0x03,
                     0x00,
-                    min(int(vol), self.state_service.volume_max),
+                    min(int(vol), int(self.state_service.volume_max)),
                     0x00,
                 ]
             )
@@ -770,28 +876,8 @@ class CommandService:
             self.state_service.update_sound_field(sound_field)
             await self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
-    def set_fmtuner(self, fmtuner):
-        self.send_command(CMD_FMTUNER[fmtuner])
-
-    def fmtuner_preset_up(self):
-        if self.initialized:
-            if self.state_service.source != "fmTuner":
-                self.send_command(CMD_SOURCE_MAP["fmTuner"])
-            self.send_command(CMD_FMTUNER_PRESET_UP)
-
-    def fmtuner_preset_down(self):
-        if self.initialized:
-            if self.state_service.source != "fmTuner":
-                self.send_command(CMD_SOURCE_MAP["fmTuner"])
-            self.send_command(CMD_FMTUNER_PRESET_DOWN)
-
 
 class DeviceService:
-    initialized = False
-    my_ip = None
-    my_network = None
-
-    ip = None
 
     logger = logging.getLogger("dev")
 
@@ -806,27 +892,26 @@ class DeviceService:
             _ip = "127.0.0.1"
         finally:
             s.close()
+
         self.my_ip = _ip
         _LOGGER.debug(f"IP: {self.my_ip}")
+        self.initialized = False
+
+        self.ip = None
 
 
 class FeedbackWatcher:
-    device_service = None
-    state_service = None
-    command_service = None
-    ended = False
-    # socket = None
-    port = None
 
     logger = logging.getLogger("sonyavr.feed")
     data_logger = logging.getLogger("sonyavr.recv")
 
     def __init__(self, sony_avr, device_service, state_service, command_service, port):
-        self.device_service = device_service
-        self.state_service = state_service
-        self.command_service = command_service
-        self.sony_avr = sony_avr
-        self.port = port
+        self.device_service: DeviceService = device_service
+        self.state_service: StateService = state_service
+        self.command_service: CommandService = command_service
+        self.sony_avr: SonyAVR = sony_avr
+        self.port: int = port
+        self.ended = False
 
     async def kill(self):
         self.ended = True
@@ -834,7 +919,7 @@ class FeedbackWatcher:
         self.writer.close()
         await self.writer.wait_closed()
 
-    def check_volume(self, data):
+    async def check_volume(self, data):
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
             if self.state_service.volume_model is None:
@@ -883,7 +968,9 @@ class FeedbackWatcher:
                 self.state_service.update_volume(vol)
             elif vol == self.state_service.volume_max + 1:
                 self.command_service.block_sending = False
-                self.command_service.async_set_volume(self.state_service.volume_max)
+                await self.command_service.async_set_volume(
+                    self.state_service.volume_max
+                )
                 self.state_service.volume = self.state_service.volume_max
                 self.command_service.block_sending = True
             return True
@@ -1004,10 +1091,17 @@ class FeedbackWatcher:
 
     async def connect(self):
         try:
-            self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
             )
             self._connected = True
+        except asyncio.TimeoutError:
+            _LOGGER.critical(
+                "Connection to %s:%d timed out after 5 seconds.",
+                self.device_service.ip,
+                self.port,
+            )
         except IOError as e:
             _LOGGER.critical(
                 "Cannot create feedback listener connection %d: %s", e.errno, e.strerror
@@ -1026,10 +1120,10 @@ class FeedbackWatcher:
             self.writer.close()
             await self.writer.wait_closed()
 
-            self.reader, self.writer = await asyncio.open_connection(
-                self.device_service.ip, self.port
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.device_service.ip, self.port),
+                timeout=5.0,  # Set your timeout in seconds here
             )
-
             self.command_service.block_sending = False
             _LOGGER.error("Reconnected")
         except IOError as e:
@@ -1078,7 +1172,7 @@ class FeedbackWatcher:
                     and not self.check_pure_direct(data)
                     and not self.check_sound_optimizer(data)
                     and not self.check_fmtuner(data)
-                    and not self.check_volume(data)
+                    and not await self.check_volume(data)
                     and not self.check_auto_standby(data)
                     and not self.check_auto_phase_matching(data)
                     and not self.ended
@@ -1091,9 +1185,7 @@ class FeedbackWatcher:
                         self.sony_avr._remote_update_cb()
                     if self.sony_avr._sensor_update_cb:
                         self.sony_avr._sensor_update_cb()
-            # except socket.timeout as e:
-            # 	_LOGGER.debug("Timeout: reconnecting...")
-            # 	self.reconnect()
+
             except Exception:
                 _LOGGER.exception("Failed to process data: reconnecting...")
                 await self.reconnect()
@@ -1165,11 +1257,6 @@ class PingWatcherService:
 
 
 class SonyAVR:
-    indicator = None
-    device_service = None
-    feedback_watcher = None
-    feedback_watcher_2 = None
-    command_service = None
     initialized = False
 
     logger = logging.getLogger("Class")
@@ -1177,12 +1264,12 @@ class SonyAVR:
     def __init__(self, hass, config_entry, ip=None, name=None, model=None, port=33335):
         self._config_entry = config_entry
         self._hass = hass
-        self.device_service = DeviceService()
-        self.state_service = StateService()
-        self.command_service = CommandService(
+        self.device_service: DeviceService = DeviceService()
+        self.state_service: StateService = StateService()
+        self.command_service: CommandService = CommandService(
             self.device_service, self.state_service, port
         )
-        self.feedback_watcher = FeedbackWatcher(
+        self.feedback_watcher: FeedbackWatcher = FeedbackWatcher(
             self,
             self.device_service,
             self.state_service,
@@ -1212,7 +1299,7 @@ class SonyAVR:
     async def quit(self):
         self.set_initialized(False)
         if self.feedback_watcher is not None:
-            self.feedback_watcher.kill()
+            await self.feedback_watcher.kill()
 
     def initialize_device(self):
         self.device_service.initialized = True
