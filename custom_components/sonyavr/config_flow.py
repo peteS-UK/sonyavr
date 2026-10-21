@@ -1,8 +1,8 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
+import probatio
 from homeassistant import config_entries, core
 from homeassistant.const import (
     CONF_HOST,
@@ -11,7 +11,6 @@ from homeassistant.const import (
     CONF_PORT,
 )
 from homeassistant.core import callback
-
 from homeassistant.helpers.selector import (
     BooleanSelector,
     NumberSelector,
@@ -19,34 +18,34 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
 )
 
-from .const import DOMAIN, CONF_PING_INTERVAL, CONF_MAX_VOLUME, CONF_POWER_CYCLE_INIT
+from .const import CONF_MAX_VOLUME, CONF_PING_INTERVAL, CONF_POWER_CYCLE_INIT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = vol.Schema(
+CONFIG_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_HOST): cv.string,
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_MODEL): cv.string,
-        vol.Optional(CONF_PORT, default=33335): cv.string,
+        probatio.Required(CONF_HOST): cv.string,
+        probatio.Required(CONF_NAME): cv.string,
+        probatio.Required(CONF_MODEL): cv.string,
+        probatio.Optional(CONF_PORT, default=33335): cv.string,
     }
 )
 
-OPTIONS_SCHEMA = vol.Schema(
+OPTIONS_SCHEMA = probatio.Schema(
     {
-        vol.Optional("max_volume"): vol.All(
+        probatio.Optional("max_volume"): probatio.All(
             NumberSelector(
                 NumberSelectorConfig(min=-100, max=100, mode=NumberSelectorMode.SLIDER)
             ),
-            vol.Coerce(int),
+            probatio.Coerce(int),
         ),
-        vol.Optional("ping_interval"): vol.All(
+        probatio.Optional("ping_interval"): probatio.All(
             NumberSelector(
                 NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
             ),
-            vol.Coerce(int),
+            probatio.Coerce(int),
         ),
-        vol.Optional(CONF_POWER_CYCLE_INIT, default=True): BooleanSelector(),
+        probatio.Optional(CONF_POWER_CYCLE_INIT, default=True): BooleanSelector(),
     }
 )
 
@@ -79,7 +78,7 @@ class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
-        errors: Dict[str, str] = {}
+        errors: dict[str, str] = {}
         if user_input is not None:
             try:
                 await validate_auth(self.hass, user_input)

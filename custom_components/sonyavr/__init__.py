@@ -3,11 +3,9 @@
 import logging
 
 from homeassistant import config_entries, core
-from homeassistant.const import Platform
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, CONF_PORT, Platform
 
-from .const import DOMAIN, CONF_MAX_VOLUME
-
+from .const import CONF_MAX_VOLUME, DOMAIN
 from .sonyavr import SonyAVR
 
 _LOGGER = logging.getLogger(__name__)

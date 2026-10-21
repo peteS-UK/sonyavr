@@ -1,44 +1,47 @@
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 
-from .const import DOMAIN
-
-from .const import SERVICE_SEND_COMMAND, SERVICE_UPDATE_STATE, CONF_POWER_CYCLE_INIT
-
-import voluptuous as vol
-
+import probatio
+from homeassistant import config_entries, core
 from homeassistant.components.media_player import (
     PLATFORM_SCHEMA,
     MediaPlayerEntity,
+)
+from homeassistant.components.media_player.const import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.const import (
     CONF_HOST,
-    CONF_NAME,
     CONF_MODEL,
+    CONF_NAME,
 )
-
 from homeassistant.helpers import (
     config_validation as cv,
+)
+from homeassistant.helpers import (
     entity_platform,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.start import async_at_started
+
+from .const import (
+    CONF_POWER_CYCLE_INIT,
+    DOMAIN,
+    SERVICE_SEND_COMMAND,
+    SERVICE_UPDATE_STATE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_HOST): cv.string,
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_MODEL): cv.string,
+        probatio.Required(CONF_HOST): cv.string,
+        probatio.Required(CONF_NAME): cv.string,
+        probatio.Required(CONF_MODEL): cv.string,
     }
 )
 
@@ -72,7 +75,10 @@ async def async_setup_entry(
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
         SERVICE_SEND_COMMAND,
-        {vol.Required("Command"): cv.string, vol.Optional("Value"): cv.string},
+        {
+            probatio.Required("Command"): cv.string,
+            probatio.Optional("Value"): cv.string,
+        },
         SonyAVRDevice.send_command.__name__,
     )
     platform.async_register_entity_service(
@@ -151,7 +157,7 @@ class SonyAVRDevice(MediaPlayerEntity):
                 self._notifier_task = None
 
         except Exception:
-            pass
+            _LOGGER.exception("Error stopping notifier")
 
         try:
             await self._device.stop_ping_watcher()
@@ -164,7 +170,7 @@ class SonyAVRDevice(MediaPlayerEntity):
                     _LOGGER.debug("Ping Watcher task cancelled")
                 self._ping_task = None
         except Exception:
-            pass
+            _LOGGER.exception("Error stopping ping watcher")
 
     @property
     def should_poll(self):
