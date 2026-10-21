@@ -2,29 +2,24 @@ __author__ = "andreasschaeffer"
 __author__ = "michaelkapuscik"
 __author__ = "petersketch"
 
-import socket
-
-import logging
-
-import binascii
-
 import asyncio
-
+import binascii
+import logging
+import socket
 import sys
-
-from .const import (
-    MAX_VOLUME,
-    MIN_VOLUME,
-    LOW_VOLUME,
-    VOLUME_STEP,
-    STR_DA5800ES_MAX_VOLUME,
-    STR_DA5800ES_MIN_VOLUME,
-    STR_DA5800ES_VOLUME_STEP,
-    CONF_PING_INTERVAL,
-)
 
 from asyncping3 import ping
 
+from .const import (
+    CONF_PING_INTERVAL,
+    LOW_VOLUME,
+    MAX_VOLUME,
+    MIN_VOLUME,
+    STR_DA5800ES_MAX_VOLUME,
+    STR_DA5800ES_MIN_VOLUME,
+    STR_DA5800ES_VOLUME_STEP,
+    VOLUME_STEP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -673,20 +668,20 @@ class CommandService:
                 timeout=5.0,  # Set your timeout in seconds here
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # This is specifically raised if the 5.0 seconds expire
             _LOGGER.critical(
                 "Connection to %s:%d timed out after 5 seconds.",
                 self.device_service.ip,
                 self.port,
             )
-        except IOError as e:
+        except OSError as e:
             # Catches active rejections like "Connection Refused"
             _LOGGER.critical(
                 "Cannot connect to command socket %d: %s", e.errno, e.strerror
             )
         except Exception:
-            _LOGGER.critical(
+            _LOGGER.exception(
                 "Unknown error on command socket connection %s", sys.exc_info()[0]
             )
 
@@ -700,7 +695,7 @@ class CommandService:
                 self.command_writer.close()
                 await self.command_writer.wait_closed()
         except Exception:
-            _LOGGER.error("Cannot disconnect from command socket")
+            _LOGGER.exception("Cannot disconnect from command socket")
         finally:
             # FIX: Prevent stale references
             self.command_writer = None
@@ -713,7 +708,7 @@ class CommandService:
                 await self.command_writer.drain()
                 _LOGGER.debug("Command : %s", ", ".join([hex(byte) for byte in cmd]))
             except Exception:
-                _LOGGER.error("Send command failed.  Attempting to reconnect")
+                _LOGGER.exception("Send command failed.  Attempting to reconnect")
                 await self.async_reconnect()
 
                 if self.command_writer is not None:
@@ -725,7 +720,7 @@ class CommandService:
                         self.command_writer.write(cmd)
                         await self.command_writer.drain()
                     except Exception as e:
-                        _LOGGER.error("Resend failed after reconnect: %s", e)
+                        _LOGGER.exception("Resend failed after reconnect: %s", e)
                 else:
                     _LOGGER.error(
                         "Could not reconnect. Command %s dropped.",
@@ -1143,12 +1138,12 @@ class FeedbackWatcher:
         try:
             self.writer.close()
             await self.writer.wait_closed()
-        except IOError as e:
+        except OSError as e:
             _LOGGER.critical(
                 "Cannot close feedback listener %d: %s", e.errno, e.strerror
             )
         except Exception:
-            _LOGGER.critical("Unknown error on listener close %s", sys.exc_info()[0])
+            _LOGGER.exception("Unknown error on listener close %s", sys.exc_info()[0])
 
     async def run(self):
         if not await self.connect():
@@ -1197,7 +1192,7 @@ class FeedbackWatcher:
             await self.writer.wait_closed()
             _LOGGER.debug("Connection closed")
         except Exception:
-            _LOGGER.error("Cannot close feedback listener connection")
+            _LOGGER.exception("Cannot close feedback listener connection")
 
 
 class PingWatcherService:
