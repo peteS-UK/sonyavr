@@ -60,11 +60,14 @@ def _update_max_volume(sonyavr, value):
 async def options_update_listener(
     hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
+    sonyavr = hass.data[DOMAIN][config_entry.entry_id]["sonyavr"]
     if config_entry.options.get(CONF_MAX_VOLUME) is not None:
-        _update_max_volume(
-            hass.data[DOMAIN][config_entry.entry_id]["sonyavr"],
-            config_entry.options[CONF_MAX_VOLUME],
-        )
+        _update_max_volume(sonyavr, config_entry.options[CONF_MAX_VOLUME])
+
+    # Refresh the entity so option changes such as the input list show
+    # immediately rather than on the next AVR feedback.
+    if sonyavr._update_cb:
+        sonyavr._update_cb()
 
     """Handle options update."""
     # await hass.config_entries.async_reload(config_entry.entry_id)

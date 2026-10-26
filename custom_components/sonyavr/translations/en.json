@@ -31,6 +31,10 @@
           "sources": "Inputs to show (leave all selected to show every input)"
         },
         "description": "Configuration Options for AVR"
+      },
+      "names": {
+        "title": "Input names",
+        "description": "Optional display names for each input, for example the device connected to it. Leave blank to keep the default name. Automations can still select inputs by their default names."
       }
     }
   }

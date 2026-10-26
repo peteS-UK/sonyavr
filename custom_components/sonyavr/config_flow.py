@@ -19,16 +19,19 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
 )
 
 from .const import (
     CONF_MAX_VOLUME,
     CONF_PING_INTERVAL,
     CONF_POWER_CYCLE_INIT,
+    CONF_SOURCE_NAMES,
     CONF_SOURCES,
     DOMAIN,
 )
 from .sonyavr import SOURCE_MENU_MAP
+from .source_names import clean_names
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +61,7 @@ OPTIONS_SCHEMA = probatio.Schema(
         probatio.Optional(CONF_POWER_CYCLE_INIT, default=True): BooleanSelector(),
         probatio.Optional(CONF_SOURCES): SelectSelector(
             SelectSelectorConfig(
-                options=list(SOURCE_MENU_MAP.values()),
+                options=sorted(SOURCE_MENU_MAP.values(), key=str.casefold),
                 multiple=True,
                 mode=SelectSelectorMode.LIST,
             )
@@ -121,11 +124,13 @@ class SonyAVRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self) -> None:
         """Initialize options flow."""
+        self._options: dict[str, Any] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            self._options = user_input
+            return await self.async_step_names()
 
         return self.async_show_form(
             step_id="init",
@@ -145,3 +150,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 },
             ),
         )
+
+    async def async_step_names(self, user_input: dict[str, Any] | None = None):
+        """Optional custom display names for the inputs being shown."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title="",
+                data={**self._options, CONF_SOURCE_NAMES: clean_names(user_input)},
+            )
+
+        sources = self._options.get(CONF_SOURCES) or list(SOURCE_MENU_MAP.values())
+        current = self.config_entry.options.get(CONF_SOURCE_NAMES, {})
+        schema = probatio.Schema(
+            {
+                probatio.Optional(source, default=current.get(source, "")): TextSelector()
+                for source in sorted(SOURCE_MENU_MAP.values(), key=str.casefold)
+                if source in sources
+            }
+        )
+        return self.async_show_form(step_id="names", data_schema=schema)
