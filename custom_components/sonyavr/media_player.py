@@ -29,11 +29,13 @@ from homeassistant.helpers.start import async_at_started
 
 from .const import (
     CONF_POWER_CYCLE_INIT,
+    CONF_SOURCE_NAMES,
     CONF_SOURCES,
     DOMAIN,
     SERVICE_SEND_COMMAND,
     SERVICE_UPDATE_STATE,
 )
+from .source_names import default_name, display_list, display_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -237,14 +239,17 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def source_list(self):
-        visible = self._config_entry.options.get(CONF_SOURCES)
-        if not visible:
-            return self._device.sources
-        return tuple(s for s in self._device.sources if s in visible)
+        return display_list(
+            self._device.sources,
+            self._config_entry.options.get(CONF_SOURCES),
+            self._config_entry.options.get(CONF_SOURCE_NAMES),
+        )
 
     @property
     def source(self):
-        return self._device.source
+        return display_name(
+            self._device.source, self._config_entry.options.get(CONF_SOURCE_NAMES)
+        )
 
     @property
     def sound_mode_list(self):
@@ -306,7 +311,9 @@ class SonyAVRDevice(MediaPlayerEntity):
         await self._device.async_update_status()
 
     async def async_select_source(self, source: str) -> None:
-        await self._device.async_set_source(source)
+        await self._device.async_set_source(
+            default_name(source, self._config_entry.options.get(CONF_SOURCE_NAMES))
+        )
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
         await self._device.async_set_mode(sound_mode)
