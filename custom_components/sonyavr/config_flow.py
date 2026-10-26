@@ -26,11 +26,12 @@ from .const import (
     CONF_MAX_VOLUME,
     CONF_PING_INTERVAL,
     CONF_POWER_CYCLE_INIT,
+    CONF_SOUND_MODES,
     CONF_SOURCE_NAMES,
     CONF_SOURCES,
     DOMAIN,
 )
-from .sonyavr import SOURCE_MENU_MAP
+from .sonyavr import SOUND_FIELD_MENU_MAP, SOURCE_MENU_MAP
 from .source_names import clean_names
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,6 +63,13 @@ OPTIONS_SCHEMA = probatio.Schema(
         probatio.Optional(CONF_SOURCES): SelectSelector(
             SelectSelectorConfig(
                 options=sorted(SOURCE_MENU_MAP.values(), key=str.casefold),
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+            )
+        ),
+        probatio.Optional(CONF_SOUND_MODES): SelectSelector(
+            SelectSelectorConfig(
+                options=sorted(SOUND_FIELD_MENU_MAP.values(), key=str.casefold),
                 multiple=True,
                 mode=SelectSelectorMode.LIST,
             )
@@ -146,6 +154,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     ),
                     CONF_SOURCES: self.config_entry.options.get(
                         CONF_SOURCES, list(SOURCE_MENU_MAP.values())
+                    ),
+                    CONF_SOUND_MODES: self.config_entry.options.get(
+                        CONF_SOUND_MODES, list(SOUND_FIELD_MENU_MAP.values())
                     ),
                 },
             ),
