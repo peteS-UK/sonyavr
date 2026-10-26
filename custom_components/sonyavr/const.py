@@ -3,6 +3,7 @@ CONF_MANUAL = "manual"
 CONF_MAX_VOLUME = "max_volume"
 CONF_PING_INTERVAL = "ping_interval"
 CONF_POWER_CYCLE_INIT = "initialize_by_power_cycle"
+CONF_SOURCES = "sources"
 
 DOMAIN = "sonyavr"
 DEFAULT_NAME = "SONY AVR"

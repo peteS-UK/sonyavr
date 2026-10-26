@@ -29,6 +29,7 @@ from homeassistant.helpers.start import async_at_started
 
 from .const import (
     CONF_POWER_CYCLE_INIT,
+    CONF_SOURCES,
     DOMAIN,
     SERVICE_SEND_COMMAND,
     SERVICE_UPDATE_STATE,
@@ -236,7 +237,10 @@ class SonyAVRDevice(MediaPlayerEntity):
 
     @property
     def source_list(self):
-        return self._device.sources
+        visible = self._config_entry.options.get(CONF_SOURCES)
+        if not visible:
+            return self._device.sources
+        return tuple(s for s in self._device.sources if s in visible)
 
     @property
     def source(self):
