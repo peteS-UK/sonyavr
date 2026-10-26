@@ -41,6 +41,7 @@ SOURCE_NAMES = [
     "video2",
     "video3",
     "video4",
+    "aux",
     "md",
     "phono",
     "multi",
@@ -78,7 +79,7 @@ SOUND_FIELD_NAMES = [
 # Byte 5 (0x00) seems to be the zone (not STR-DN-860, but maybe STR-DN-1060)
 CMD_SOURCE_MAP = {
     "bd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
-    "dvd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
+    "dvd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x19, 0x00]),  # was 0x1B (BD); feedback reports DVD as 0x19
     "game": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1C, 0x00]),
     "satCaTV": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x16, 0x00]),
     "stb": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x3F, 0x00]),
@@ -86,6 +87,7 @@ CMD_SOURCE_MAP = {
     "video2": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x11, 0x00]),
     "video3": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x12, 0x00]),
     "video4": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x13, 0x00]),
+    "aux": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x0A, 0x00]),
     "md": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x04, 0x00]),
     "phono": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x01, 0x00]),
     "multi": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x20, 0x00]),
@@ -262,6 +264,15 @@ FEEDBACK_SOURCE_MAP = {
         bytearray([0x00, 0x13, 0x00]),
         bytearray([0x00, 0x10, 0x00]),
     ],
+    "aux": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x0A, 0x00]),
+        bytearray([0x21, 0x00, 0x9A]),
+        bytearray([0x23, 0x00, 0x98]),
+        bytearray([0x20, 0x00, 0x9B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
     "md": [
         bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x04, 0x00]),
         bytearray([0x21, 0x00, 0x8A]),
@@ -433,6 +444,7 @@ SOURCE_MENU_MAP = {
     "video2": "Video 2",
     "video3": "Video 3",
     "video4": "Video 4",
+    "aux": "AUX",
     "md": "MD/Tape",
     "phono": "Phono",
     "multi": "Multi In",
@@ -714,6 +726,10 @@ class CommandService:
             self.command_reader = None
 
     async def async_send_command(self, cmd):
+        if not self.block_sending and self.command_writer is None:
+            _LOGGER.debug("Command socket missing, attempting to reconnect")
+            await self.async_connect()
+
         if not self.block_sending and self.command_writer is not None:
             try:
                 self.command_writer.write(cmd)
@@ -852,7 +868,7 @@ class CommandService:
 
     async def async_select_source(self, source):
         _LOGGER.debug("Select Source %s", source)
-        if self.initialized and self.state_service.source != source:
+        if self.initialized:
             self.state_service.update_source(source)
             await self.async_send_command(CMD_SOURCE_MAP[source])
 
@@ -879,7 +895,7 @@ class CommandService:
                     return
 
     async def async_select_sound_field(self, sound_field):
-        if self.initialized and self.state_service.sound_field != sound_field:
+        if self.initialized:
             self.state_service.update_sound_field(sound_field)
             await self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
@@ -1005,6 +1021,17 @@ class FeedbackWatcher:
                     # FEEDBACK_POWER_ON_MUTE_ON
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(True)
+                elif (status := self._status_byte(data)) is not None:
+                    power = bool(status & 0x01)
+                    _LOGGER.debug(
+                        "Power/Mute from status byte %s: power %s muted %s",
+                        hex(status),
+                        power,
+                        bool(status & 0x02),
+                    )
+                    self.state_service.update_power(power, True)
+                    if power:
+                        self.state_service.update_muted(bool(status & 0x02))
                 else:
                     _LOGGER.debug(
                         "Unmatched Power/Mute Data %s",
@@ -1012,6 +1039,16 @@ class FeedbackWatcher:
                     )
                 source_switched = True
         return source_switched
+
+    @staticmethod
+    def _status_byte(data):
+        if len(data) < 3:
+            return None
+        if data[-3] & 0xF0 == 0x20:
+            return data[-3]
+        if data[-3] == 0x00 and data[-2] & 0xF0 == 0x10:
+            return data[-2]
+        return None
 
     def check_sound_field(self, data):
         sound_field_switched = False
