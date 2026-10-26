@@ -4,6 +4,7 @@ CONF_MAX_VOLUME = "max_volume"
 CONF_PING_INTERVAL = "ping_interval"
 CONF_POWER_CYCLE_INIT = "initialize_by_power_cycle"
 CONF_SOURCES = "sources"
+CONF_SOUND_MODES = "sound_modes"
 CONF_SOURCE_NAMES = "source_names"
 
 DOMAIN = "sonyavr"

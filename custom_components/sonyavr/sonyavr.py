@@ -54,7 +54,7 @@ SOURCE_NAMES = [
 ]
 SOUND_FIELD_NAMES = [
     ["twoChannelStereo", "analogDirect", "multiStereo", "afd"],
-    ["pl2Movie", "neo6Cinema", "hdDcs"],
+    ["pl2Movie", "neo6Cinema", "hdDcs", "dolbySurround", "neuralX"],
     [
         "pl2Music",
         "neo6Music",
@@ -147,6 +147,9 @@ CMD_SOUND_FIELD_MAP = {
     "neoxgame": bytearray([0x02, 0x03, 0xA3, 0x42, 0x37, 0x00]),
     "vocalheight": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3A, 0x00]),
     "pliizmusic": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3D, 0x00]),
+    # Confirmed on STR-ZA1100ES
+    "dolbySurround": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3E, 0x00]),
+    "neuralX": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3F, 0x00]),
 }
 
 # not working ? only preset up and down are working currently
@@ -408,6 +411,9 @@ FEEDBACK_SOUND_FIELD_MAP = {
     "neoxgame": bytearray([0x02, 0x04, 0xAB, 0x82, 0x37, 0x00]),
     "vocalheight": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3A, 0x00]),
     "pliizmusic": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3D, 0x00]),
+    # Confirmed on STR-ZA1100ES
+    "dolbySurround": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3E, 0x00]),
+    "neuralX": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3F, 0x00]),
 }
 
 FEEDBACK_PURE_DIRECT_ON = bytearray([0x02, 0x03, 0xAB, 0x98, 0x01])
@@ -485,6 +491,8 @@ SOUND_FIELD_MENU_MAP = {
     "neoxgame": "Neo:X Game",
     "vocalheight": "Vocal Height",
     "pliizmusic": "PLIIz Height Music",
+    "dolbySurround": "Dolby Surround",
+    "neuralX": "Neural:X",
 }
 
 SOUND_OPTIMIZER_MENU_MAP = {"off": "Off", "normal": "Normal", "low": "Low"}
