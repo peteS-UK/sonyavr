@@ -531,8 +531,122 @@ FM_TUNER_MENU_MAP = {
 }
 
 
-class StateService:
+# --- Zone 2 / Zone 3 (binary protocol) -------------------------------------
+# Verified on an STR-ZA1100ES. Byte 4 of commands and feedback packets is the
+# zone: 0x00 main (handled by the maps above), 0x01 Zone 2, 0x02 Zone 3.
+ZONE_BYTES = {2: 0x01, 3: 0x02}
+ZONE_BY_BYTE = {v: k for k, v in ZONE_BYTES.items()}
+# Zone input "Source": the zone follows the main zone's input
+ZONE_FOLLOW_MAIN = "source"
+ZONE_FOLLOW_MAIN_CODE = 0x0F
+ZONE_FOLLOW_MAIN_NAME = "Source"
+ZONE_FEEDBACK_SOURCE_PREFIX = bytearray([0x02, 0x07, 0xA8, 0x82])
+ZONE_FEEDBACK_VOLUME_PREFIX = bytearray([0x02, 0x06, 0xA8, 0x92])
+# Input code reported in zone feedback -> source key
+SOURCE_BY_FEEDBACK_CODE = {fb[0][5]: key for key, fb in FEEDBACK_SOURCE_MAP.items()}
 
+
+def _append_checksum(body):
+    """Append the checksum: two's complement of the sum of bytes after STX."""
+    body = bytearray(body)
+    body.append((-sum(body[1:])) & 0xFF)
+    return body
+
+
+def zone_power_command(zone, on):
+    return bytearray(
+        [0x02, 0x04, 0xA0, 0x60, ZONE_BYTES[zone], 0x01 if on else 0x00, 0x00]
+    )
+
+
+def zone_mute_command(zone, mute):
+    return bytearray(
+        [0x02, 0x04, 0xA0, 0x53, ZONE_BYTES[zone], 0x01 if mute else 0x00, 0x00]
+    )
+
+
+def zone_source_command(zone, source):
+    """source is a SOURCE_MENU_MAP key, or ZONE_FOLLOW_MAIN."""
+    code = (
+        ZONE_FOLLOW_MAIN_CODE
+        if source == ZONE_FOLLOW_MAIN
+        else CMD_SOURCE_MAP[source][5]
+    )
+    return bytearray([0x02, 0x04, 0xA0, 0x42, ZONE_BYTES[zone], code, 0x00])
+
+
+def zone_volume_command(zone, vol, volume_model):
+    """Absolute volume, in the same format the main zone uses for this model."""
+    if volume_model == 1:
+        # dB with 0.5 steps
+        vol = round(float(vol) * 2) / 2
+        half = (vol % 1) == 0.5
+        vol_byte = int(vol) if vol > 0 else int(vol) + 256 - (1 if half else 0)
+        return bytearray(
+            [
+                0x02,
+                0x06,
+                0xA0,
+                0x52,
+                ZONE_BYTES[zone],
+                0x01,
+                vol_byte & 0xFF,
+                0x80 if half else 0x00,
+                0x00,
+            ]
+        )
+    return bytearray(
+        [0x02, 0x06, 0xA0, 0x52, ZONE_BYTES[zone], 0x03, 0x00, int(vol), 0x00]
+    )
+
+
+def zone_volume_step_command(zone, up):
+    return _append_checksum([0x02, 0x03, 0xA0, 0x55 if up else 0x56, ZONE_BYTES[zone]])
+
+
+def parse_zone_feedback(data):
+    """Return (zone, {field: value}) for a Zone 2/3 feedback packet, else None."""
+    if (
+        len(data) >= 9
+        and data[:4] == ZONE_FEEDBACK_SOURCE_PREFIX
+        and data[4] in ZONE_BY_BYTE
+    ):
+        code = data[5]
+        status = data[7]
+        fields = {
+            "source": ZONE_FOLLOW_MAIN
+            if code == ZONE_FOLLOW_MAIN_CODE
+            else SOURCE_BY_FEEDBACK_CODE.get(code),
+            # zone status byte: bit 0 = power, bit 1 = muted
+            "power": bool(status & 0x01),
+        }
+        if fields["power"]:
+            fields["muted"] = bool(status & 0x02)
+        return ZONE_BY_BYTE[data[4]], fields
+    if (
+        len(data) >= 8
+        and data[:4] == ZONE_FEEDBACK_VOLUME_PREFIX
+        and data[4] in ZONE_BY_BYTE
+    ):
+        if data[5] == 0x01:
+            vol = float(data[6] if data[6] < 128 else data[6] - 256) + data[7] / 256.0
+        else:
+            vol = data[7]
+        return ZONE_BY_BYTE[data[4]], {"volume": vol}
+    return None
+
+
+class ZoneState:
+    """State of Zone 2 or Zone 3. None means not yet reported by the AVR."""
+
+    def __init__(self):
+        self.power: bool | None = None
+        self.source: str | None = None
+        self.volume: float | None = None
+        self.muted: bool | None = None
+
+
+class StateService:
     # logger = logging.getLogger("sonyavr.state")
 
     states = {
@@ -592,6 +706,7 @@ class StateService:
         self.auto_standby: bool | None = None
         self.auto_phase_matching: bool | None = None
         self.volume: float = 0
+        self.zones: dict[int, ZoneState] = {zone: ZoneState() for zone in ZONE_BYTES}
 
     def update_power(self, power, state_only=False):
         if self.initialized:
@@ -676,7 +791,6 @@ class StateService:
 
 
 class CommandService:
-
     logger = logging.getLogger("cmd")
     data_logger = logging.getLogger("send")
 
@@ -909,7 +1023,6 @@ class CommandService:
 
 
 class DeviceService:
-
     logger = logging.getLogger("dev")
 
     def __init__(self):
@@ -932,7 +1045,6 @@ class DeviceService:
 
 
 class FeedbackWatcher:
-
     logger = logging.getLogger("sonyavr.feed")
     data_logger = logging.getLogger("sonyavr.recv")
 
@@ -1006,6 +1118,18 @@ class FeedbackWatcher:
                 self.command_service.block_sending = True
             return True
         return False
+
+    def check_zone(self, data):
+        """Apply a Zone 2/3 feedback packet. Returns the zone, or None."""
+        parsed = parse_zone_feedback(data)
+        if parsed is None:
+            return None
+        zone, fields = parsed
+        state = self.state_service.zones[zone]
+        for field, value in fields.items():
+            setattr(state, field, value)
+        _LOGGER.debug("Zone %d: %s", zone, fields)
+        return zone
 
     def check_source(self, data):
         source_switched = False
@@ -1217,6 +1341,13 @@ class FeedbackWatcher:
 
                 if not self.ended:
                     self.debug_data(data)
+
+                zone = self.check_zone(data)
+                if zone is not None:
+                    if cb := self.sony_avr._zone_update_cbs.get(zone):
+                        cb()
+                    continue
+
                 if (
                     not self.check_timer(data)
                     and not self.check_source(data)
@@ -1339,6 +1470,7 @@ class SonyAVR:
         self._update_cb = None
         self._remote_update_cb = None
         self._sensor_update_cb = None
+        self._zone_update_cbs = {}
 
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
@@ -1452,6 +1584,67 @@ class SonyAVR:
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
+
+    def set_zone_update_cb(self, zone, cb):
+        if cb is None:
+            self._zone_update_cbs.pop(zone, None)
+        else:
+            self._zone_update_cbs[zone] = cb
+
+    async def async_zone_turn_on(self, zone):
+        await self.command_service.async_send_command(zone_power_command(zone, True))
+
+    async def async_zone_turn_off(self, zone):
+        await self.command_service.async_send_command(zone_power_command(zone, False))
+
+    async def async_zone_set_mute(self, zone, mute):
+        await self.command_service.async_send_command(zone_mute_command(zone, mute))
+
+    async def async_zone_set_source(self, zone, source):
+        """source is a default input name (SOURCE_MENU_MAP value) or "Source"."""
+        if source == ZONE_FOLLOW_MAIN_NAME:
+            key = ZONE_FOLLOW_MAIN
+        else:
+            key = next((k for k, v in SOURCE_MENU_MAP.items() if v == source), None)
+            if key is None:
+                _LOGGER.error('Source "%s" is not a valid input', source)
+                return
+        await self.command_service.async_send_command(zone_source_command(zone, key))
+
+    async def async_zone_volume_set(self, zone, vol):
+        vol = max(
+            min(vol, self.state_service.volume_max), self.state_service.volume_min
+        )
+        await self.command_service.async_send_command(
+            zone_volume_command(zone, vol, self.state_service.volume_model)
+        )
+
+    async def async_zone_volume_up(self, zone):
+        await self._async_zone_volume_step(zone, True)
+
+    async def async_zone_volume_down(self, zone):
+        await self._async_zone_volume_step(zone, False)
+
+    async def _async_zone_volume_step(self, zone, up):
+        if self.state_service.volume_model == 1:
+            await self.command_service.async_send_command(
+                zone_volume_step_command(zone, up)
+            )
+        elif (volume := self.state_service.zones[zone].volume) is not None:
+            step = self.command_service.scroll_step_volume
+            await self.async_zone_volume_set(zone, volume + (step if up else -step))
+
+    async def async_zone_update_status(self, zone):
+        """Ask the AVR to report the zone's volume without changing it.
+
+        There is no status query, so step the volume down and back up (on an
+        STR-ZA1100ES this works whether or not the zone is on, and does not
+        change its power). Power and input are reported when they change.
+        """
+        if self.state_service.volume_model == 1:
+            await self._async_zone_volume_step(zone, False)
+            await asyncio.sleep(1.0)
+            await self._async_zone_volume_step(zone, True)
 
     def set_sensor_update_cb(self, cb):
         self._sensor_update_cb = cb

@@ -29,6 +29,7 @@ from .const import (
     CONF_SOUND_MODES,
     CONF_SOURCE_NAMES,
     CONF_SOURCES,
+    CONF_ZONES,
     DOMAIN,
 )
 from .sonyavr import SOUND_FIELD_MENU_MAP, SOURCE_MENU_MAP
@@ -60,6 +61,13 @@ OPTIONS_SCHEMA = probatio.Schema(
             probatio.Coerce(int),
         ),
         probatio.Optional(CONF_POWER_CYCLE_INIT, default=True): BooleanSelector(),
+        probatio.Optional(CONF_ZONES): SelectSelector(
+            SelectSelectorConfig(
+                options=["Zone 2", "Zone 3"],
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+            )
+        ),
     }
 )
 
@@ -148,7 +156,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_config(self, user_input: dict[str, Any] | None = None):
         """General configuration."""
         if user_input is not None:
-            return self._save(user_input)
+            # An emptied multi-select may be omitted; save it as "no zones"
+            return self._save({CONF_ZONES: [], **user_input})
 
         options = self.config_entry.options
         return self.async_show_form(
@@ -159,6 +168,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_MAX_VOLUME: options.get(CONF_MAX_VOLUME),
                     CONF_PING_INTERVAL: options.get(CONF_PING_INTERVAL, 60),
                     CONF_POWER_CYCLE_INIT: options.get(CONF_POWER_CYCLE_INIT, True),
+                    CONF_ZONES: options.get(CONF_ZONES, []),
                 },
             ),
         )
