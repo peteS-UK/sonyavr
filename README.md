@@ -6,7 +6,7 @@
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/sonyavr)](#)
 
-This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES, STR-DN1060 and STR-DN850.  
+This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES, STR-DN1060, STR-DN850 and STR-ZA1100ES.  
 
 Online sources suggest similar commands may work with
 
