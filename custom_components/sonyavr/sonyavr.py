@@ -30,6 +30,15 @@ TCP_PORT_1 = 33335
 TCP_PORT_2 = 33336
 BUFFER_SIZE = 1024
 
+# Reconnect backoff for the feedback listener (seconds)
+RECONNECT_DELAY_MIN = 5
+RECONNECT_DELAY_MAX = 60
+# After power is restored the AVR answers ping well before its control port
+# accepts connections (~90 s on an STR-DA5800ES). Wait for the port, up to this
+# long, before reloading.
+PORT_READY_TIMEOUT = 300
+PORT_READY_POLL = 5
+
 
 SOURCE_NAMES = [
     "bd",
@@ -943,6 +952,9 @@ class FeedbackWatcher:
         self.sony_avr: SonyAVR = sony_avr
         self.port: int = port
         self.ended = False
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
+        self._connected = False
 
     async def kill(self):
         self.ended = True
@@ -1168,33 +1180,47 @@ class FeedbackWatcher:
         return self._connected
 
     async def reconnect(self):
-        try:
-            self.writer.close()
-            await self.writer.wait_closed()
+        """Reconnect the feedback listener, retrying with backoff until it
+        succeeds or the watcher is stopped.
 
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.device_service.ip, self.port),
-                timeout=5.0,  # Set your timeout in seconds here
-            )
-            self.command_service.block_sending = False
-            _LOGGER.error("Reconnected")
-        except IOError as e:
-            _LOGGER.critical(
-                "Cannot create feedback listener re-connection %d: %s",
-                e.errno,
-                e.strerror,
-            )
-            self.ended = True
-        except Exception:
-            _LOGGER.critical(
-                "Unknown error on feedback listener re-connection %s", sys.exc_info()[0]
-            )
-            self.ended = True
+        Previously a single failed attempt set ended = True, so after an AVR
+        power loss the listener stopped permanently and states went stale
+        until the integration was reloaded.
+        """
+        try:
+            if self.writer is not None:
+                self.writer.close()
+                await self.writer.wait_closed()
+        except OSError:
+            _LOGGER.debug("Error closing feedback listener before reconnect")
+
+        delay = RECONNECT_DELAY_MIN
+        while not self.ended:
+            try:
+                self.reader, self.writer = await asyncio.wait_for(
+                    asyncio.open_connection(self.device_service.ip, self.port),
+                    timeout=5.0,
+                )
+                self.command_service.block_sending = False
+                _LOGGER.warning("Feedback listener reconnected")
+                return True
+            except (OSError, TimeoutError) as e:
+                _LOGGER.warning(
+                    "Cannot reconnect feedback listener (%s), retrying in %d s",
+                    e,
+                    delay,
+                )
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, RECONNECT_DELAY_MAX)
+        return False
 
     async def stop(self):
+        # Stop any reconnect loop as well as the read loop
+        self.ended = True
         try:
-            self.writer.close()
-            await self.writer.wait_closed()
+            if self.writer is not None:
+                self.writer.close()
+                await self.writer.wait_closed()
         except OSError as e:
             _LOGGER.critical(
                 "Cannot close feedback listener %d: %s", e.errno, e.strerror
@@ -1203,7 +1229,9 @@ class FeedbackWatcher:
             _LOGGER.exception("Unknown error on listener close %s", sys.exc_info()[0])
 
     async def run(self):
-        if not await self.connect():
+        # The AVR may still be booting (e.g. on reload after power is restored),
+        # so keep retrying rather than giving up and never listening.
+        if not await self.connect() and not await self.reconnect():
             return
 
         while not self.ended:
@@ -1211,6 +1239,13 @@ class FeedbackWatcher:
                 await asyncio.sleep(0.1)
 
                 data = await self.reader.read(BUFFER_SIZE)
+
+                if not data:
+                    # Empty read means the AVR closed the connection
+                    _LOGGER.warning("Feedback connection closed by AVR, reconnecting")
+                    if not await self.reconnect():
+                        break
+                    continue
 
                 # Prevent feedback loops by block sending commands
                 self.command_service.block_sending = True
@@ -1253,11 +1288,47 @@ class FeedbackWatcher:
 
 
 class PingWatcherService:
-    def __init__(self, hass, config_entry, host):
+    def __init__(self, hass, config_entry, host, port=TCP_PORT_1):
         self._hass = hass
         self._config_entry = config_entry
         self._host = host
+        self._port = port
         self._stop = False
+
+    async def _port_ready(self):
+        """Return True if the AVR's control port accepts a connection."""
+        try:
+            _reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(self._host, self._port), timeout=3.0
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (OSError, TimeoutError):
+            return False
+
+    async def _wait_for_port(self):
+        """Wait until the control port is up, so the reload can connect.
+
+        Ping answers as soon as the AVR's network comes up, but the control
+        port is refused until it has finished booting. Reloading after a fixed
+        30 s delay could therefore fail with "Connect call failed" (errno 111)
+        and leave the integration without a connection.
+        """
+        waited = 0
+        while not self._stop and waited < PORT_READY_TIMEOUT:
+            if await self._port_ready():
+                _LOGGER.debug("Control port ready after %d s", waited)
+                # Give the AVR a moment to finish initialising
+                await asyncio.sleep(PORT_READY_POLL)
+                return
+            await asyncio.sleep(PORT_READY_POLL)
+            waited += PORT_READY_POLL
+        _LOGGER.warning(
+            "Control port %d not ready after %d s, reloading anyway",
+            self._port,
+            PORT_READY_TIMEOUT,
+        )
 
     async def start(self):
         while not self._stop:
@@ -1301,8 +1372,11 @@ class PingWatcherService:
                 "Connectivity re-established with %s.  Reloading configuration",
                 self._host,
             )
-            await asyncio.sleep(30)
-            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
+            await self._wait_for_port()
+            if not self._stop:
+                self._hass.config_entries.async_schedule_reload(
+                    self._config_entry.entry_id
+                )
 
     async def stop(self):
         self._stop = True
@@ -1328,7 +1402,7 @@ class SonyAVR:
             self.command_service,
             port,
         )
-        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
+        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip, port)
 
         self.initialize_device()
 
