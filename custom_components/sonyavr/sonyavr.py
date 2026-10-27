@@ -10,6 +10,7 @@ import sys
 
 from asyncping3 import ping
 
+from .cisip2 import CisIp2Client
 from .const import (
     CONF_PING_INTERVAL,
     LOW_VOLUME,
@@ -645,6 +646,123 @@ def parse_zone_feedback(data):
     return None
 
 
+# CIS-IP2 input values -> source keys. "bd", "tv" and "sourc" were seen on an
+# STR-ZA1100ES; the rest follow Sony's CIS-IP2 input list.
+CISIP2_INPUTS = {
+    "bd": "bd",
+    "dvd": "dvd",
+    "game": "game",
+    "sat": "satCaTV",
+    "catv": "satCaTV",
+    "stb": "stb",
+    "video": "video1",
+    "aux": "aux",
+    "tv": "tv",
+    "sacd": "saCd",
+    "cd": "saCd",
+    "fm": "fmTuner",
+    "am": "amTuner",
+    "tuner": "fmTuner",
+}
+# CIS-IP2 sound field values -> sound field keys. The first six are the
+# STR-ZA1100ES's modes; the others match one-to-one. Ambiguous values (e.g.
+# "pl2", "neo6") are not mapped.
+CISIP2_SOUND_FIELDS = {
+    "2ch": "twoChannelStereo",
+    "direct": "analogDirect",
+    "afd": "afd",
+    "multi": "multiStereo",
+    "dolby": "dolbySurround",
+    "neuralx": "neuralX",
+    "hddcs": "hdDcs",
+    "pl2_movie": "pl2Movie",
+    "neo6_movie": "neo6Cinema",
+}
+CISIP2_MAIN_FEATURES = (
+    "main.power",
+    "main.input",
+    "main.volumedb",
+    "main.mute",
+    "audio.soundfield",
+)
+
+
+def parse_cisip2_main_feature(feature, value):
+    """Return {field: value} for a CIS-IP2 main-zone feature, else None."""
+    if value in (None, "ERR", "NACK"):
+        return None
+    if feature == "main.power":
+        return {"power": value == "on"}
+    if feature == "main.mute":
+        return {"muted": value == "on"}
+    if feature == "main.volumedb":
+        try:
+            return {"volume": float(value)}
+        except (TypeError, ValueError):
+            return None
+    if feature == "main.input" and value in CISIP2_INPUTS:
+        return {"source": CISIP2_INPUTS[value]}
+    if feature == "audio.soundfield" and value in CISIP2_SOUND_FIELDS:
+        return {"sound_field": CISIP2_SOUND_FIELDS[value]}
+    return None
+
+
+# The AVR reports "sourc" when a zone follows the main zone's input
+CISIP2_FOLLOW_MAIN = {"source", "sourc"}
+CISIP2_ZONE_FEATURES = ("power", "input", "volumedb", "mute")
+
+
+def parse_cisip2_zone_feature(feature, value):
+    """Return (zone, {field: value}) for a CIS-IP2 zone feature, else None."""
+    zone_name, _, name = (feature or "").partition(".")
+    if not zone_name.startswith("zone") or value in (None, "ERR", "NACK"):
+        return None
+    try:
+        zone = int(zone_name[4:])
+    except ValueError:
+        return None
+    if zone not in ZONE_BYTES:
+        return None
+    if name == "power":
+        return zone, {"power": value == "on"}
+    if name == "mute":
+        return zone, {"muted": value == "on"}
+    if name == "volumedb":
+        try:
+            return zone, {"volume": float(value)}
+        except (TypeError, ValueError):
+            return None
+    if name == "input":
+        if value in CISIP2_FOLLOW_MAIN:
+            return zone, {"source": ZONE_FOLLOW_MAIN}
+        if value in CISIP2_INPUTS:
+            return zone, {"source": CISIP2_INPUTS[value]}
+        _LOGGER.debug("Unknown CIS-IP2 input %s for zone %d", value, zone)
+    return None
+
+
+def apply_volume_model(state_service, command_service, model):
+    """Set the volume model (1 = dB, 3 = step) and its range, if not yet known."""
+    if state_service.volume_model is not None:
+        return
+    _LOGGER.debug("Setting Volume Model %s", model)
+    state_service.volume_model = model
+    if model == 1:
+        state_service.volume_min = STR_DA5800ES_MIN_VOLUME
+        if state_service.volume_max == 0:
+            # Prevent overwrite of configured volume on reload
+            state_service.volume_max = STR_DA5800ES_MAX_VOLUME
+        command_service.scroll_step_volume = STR_DA5800ES_VOLUME_STEP
+    else:
+        state_service.volume_min = MIN_VOLUME
+        if state_service.volume_max == 0:
+            # Prevent overwrite of configured volume on reload
+            state_service.volume_max = MAX_VOLUME
+        command_service.scroll_step_volume = VOLUME_STEP
+    state_service.volume_range = state_service.volume_max - state_service.volume_min
+    _LOGGER.debug("Vol Model %s : Max Volume %s", model, state_service.volume_max)
+
+
 class ZoneState:
     """State of Zone 2 or Zone 3. None means not yet reported by the AVR."""
 
@@ -1077,38 +1195,9 @@ class FeedbackWatcher:
     async def check_volume(self, data):
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
             # Check if AVR is STR or not
-            if self.state_service.volume_model is None:
-                _LOGGER.debug("Vol Max %s", self.state_service.volume_max)
-                if data[5] == 1:
-                    _LOGGER.debug("Setting Volume Model 1")
-                    self.state_service.volume_model = 1
-                    self.state_service.volume_min = STR_DA5800ES_MIN_VOLUME
-                    if self.state_service.volume_max == 0:
-                        # Prevent overwrite of configured volume on reload
-                        self.state_service.volume_max = STR_DA5800ES_MAX_VOLUME
-                        _LOGGER.debug(
-                            "Vol Model 1 : Initial Max Volume set to %s",
-                            self.state_service.volume_max,
-                        )
-                    self.state_service.volume_range = (
-                        self.state_service.volume_max - self.state_service.volume_min
-                    )
-                    self.command_service.scroll_step_volume = STR_DA5800ES_VOLUME_STEP
-                else:
-                    _LOGGER.debug("Setting Volume Model 3")
-                    self.state_service.volume_model = 3
-                    self.state_service.volume_min = MIN_VOLUME
-                    if self.state_service.volume_max == 0:
-                        # Prevent overwrite of configured volume on reload
-                        self.state_service.volume_max = MAX_VOLUME
-                        _LOGGER.debug(
-                            "Vol Model 3 : Initial Max Volume set to %s",
-                            self.state_service.volume_max,
-                        )
-                    self.state_service.volume_range = (
-                        self.state_service.volume_max - self.state_service.volume_min
-                    )
-                    self.command_service.scroll_step_volume = VOLUME_STEP
+            apply_volume_model(
+                self.state_service, self.command_service, 1 if data[5] == 1 else 3
+            )
 
             if self.state_service.volume_model == 3:
                 vol = data[7]
@@ -1545,6 +1634,11 @@ class SonyAVR:
         self._remote_update_cb = None
         self._sensor_update_cb = None
         self._zone_update_cbs = {}
+        # CIS-IP2 (JSON, port 33336) is used, when the AVR supports it, to read
+        # main-zone and zone state. None = not probed yet.
+        self._cisip2: CisIp2Client | None = None
+        self._cisip2_supported: bool | None = None
+        self._cisip2_lock = asyncio.Lock()
 
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
@@ -1708,13 +1802,139 @@ class SonyAVR:
             step = self.command_service.scroll_step_volume
             await self.async_zone_volume_set(zone, volume + (step if up else -step))
 
-    async def async_zone_update_status(self, zone):
-        """Ask the AVR to report the zone's volume without changing it.
+    def _apply_zone_fields(self, zone, fields):
+        state = self.state_service.zones[zone]
+        for field, value in fields.items():
+            setattr(state, field, value)
 
-        There is no status query, so step the volume down and back up (on an
-        STR-ZA1100ES this works whether or not the zone is on, and does not
-        change its power). Power and input are reported when they change.
+    def _apply_main_fields(self, fields):
+        state = self.state_service
+        if "power" in fields:
+            state.update_power(fields["power"], True)
+        if "source" in fields:
+            # state_only: the AVR may be in standby
+            state.update_source(fields["source"], True)
+        if "volume" in fields:
+            state.update_volume(fields["volume"])
+        if "muted" in fields:
+            state.update_muted(fields["muted"])
+        if "sound_field" in fields:
+            state.update_sound_field(fields["sound_field"])
+
+    def _main_updated(self):
+        for cb in (self._update_cb, self._remote_update_cb, self._sensor_update_cb):
+            if cb:
+                cb()
+
+    async def async_cisip2_read_main(self):
+        """Read the main zone's state over CIS-IP2.
+
+        Returns True if the power state was read, so the startup routine that
+        nudges mute, volume and input (or power cycles) can be skipped.
         """
+        if not await self._async_cisip2_available() or self._cisip2 is None:
+            return False
+        power_read = False
+        for feature in CISIP2_MAIN_FEATURES:
+            fields = parse_cisip2_main_feature(feature, await self._cisip2.get(feature))
+            if fields:
+                if "volume" in fields and self.state_service.volume_model is None:
+                    # Volume is only meaningful once the volume model is known.
+                    # An AVR reporting volume in dB but not in steps uses the
+                    # dB model (e.g. STR-ZA1100ES); otherwise leave it to the
+                    # binary volume feedback.
+                    if await self._cisip2.get("main.volumestep") in (None, "ERR"):
+                        apply_volume_model(self.state_service, self.command_service, 1)
+                    else:
+                        continue
+                self._apply_main_fields(fields)
+                power_read = power_read or "power" in fields
+        if power_read:
+            _LOGGER.debug("Main zone state read over CIS-IP2")
+            self._main_updated()
+        return power_read
+
+    async def async_detect_volume_model(self):
+        """Have the AVR report its volume (and so its volume model)."""
+        await self.command_service.async_send_command(CMD_VOLUME_DOWN)
+        await asyncio.sleep(1.0)
+        if self.state_service.volume_model == 1:
+            await self.command_service.async_send_command(CMD_VOLUME_UP)
+
+    def _on_cisip2_notify(self, feature, value):
+        if fields := parse_cisip2_main_feature(feature, value):
+            self._apply_main_fields(fields)
+            self._main_updated()
+            return
+        parsed = parse_cisip2_zone_feature(feature, value)
+        if parsed is None:
+            return
+        zone, fields = parsed
+        self._apply_zone_fields(zone, fields)
+        if cb := self._zone_update_cbs.get(zone):
+            cb()
+
+    async def _async_cisip2_read_zone(self, zone):
+        """Read a zone's state over CIS-IP2. Returns False if nothing was read."""
+        if self._cisip2 is None:
+            return False
+        read = False
+        for name in CISIP2_ZONE_FEATURES:
+            feature = f"zone{zone}.{name}"
+            parsed = parse_cisip2_zone_feature(feature, await self._cisip2.get(feature))
+            if parsed is not None:
+                self._apply_zone_fields(*parsed)
+                read = True
+        if read and (cb := self._zone_update_cbs.get(zone)):
+            cb()
+        return read
+
+    async def _async_cisip2_reconnected(self):
+        await self.async_cisip2_read_main()
+        for zone in list(self._zone_update_cbs):
+            await self._async_cisip2_read_zone(zone)
+
+    async def _async_cisip2_available(self):
+        """Connect to CIS-IP2 once; return whether it can be used."""
+        async with self._cisip2_lock:
+            if self._cisip2_supported is None:
+                client = CisIp2Client(
+                    self.device_service.ip,
+                    on_notify=self._on_cisip2_notify,
+                    on_reconnect=self._async_cisip2_reconnected,
+                )
+                if await client.connect() and parse_cisip2_main_feature(
+                    "main.power", await client.get("main.power")
+                ):
+                    self._cisip2 = client
+                    self._cisip2_supported = True
+                    _LOGGER.info("Using CIS-IP2 to read AVR state")
+                else:
+                    await client.close()
+                    self._cisip2_supported = False
+                    _LOGGER.info("CIS-IP2 not available; using control port only")
+            return self._cisip2_supported
+
+    async def async_stop_cisip2(self):
+        async with self._cisip2_lock:
+            if self._cisip2 is not None:
+                await self._cisip2.close()
+            self._cisip2 = None
+            self._cisip2_supported = None
+
+    async def async_zone_update_status(self, zone):
+        """Read the zone's state.
+
+        Uses CIS-IP2 when the AVR supports it (power, input, volume and mute,
+        plus change notifications). Otherwise there is no status query, so step
+        the volume down and back up to have the AVR report the volume (on an
+        STR-ZA1100ES this works whether or not the zone is on, and does not
+        change its power); power and input are reported when they change.
+        """
+        if await self._async_cisip2_available() and await self._async_cisip2_read_zone(
+            zone
+        ):
+            return
         if self.state_service.volume_model == 1:
             await self._async_zone_volume_step(zone, False)
             await asyncio.sleep(1.0)
