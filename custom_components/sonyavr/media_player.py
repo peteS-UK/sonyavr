@@ -125,6 +125,16 @@ class SonyAVRDevice(MediaPlayerEntity):
 
         await asyncio.sleep(1)
 
+        if self._device.state_service.power is None and (
+            await self._device.async_cisip2_read_main()
+        ):
+            # State read directly, so no need to nudge mute, volume or input,
+            # or to power cycle the AVR
+            if self._device.state_service.volume_model is None:
+                await self._device.async_detect_volume_model()
+            _LOGGER.debug("Device states initialised from CIS-IP2")
+            return
+
         if self._device.state_service.power is None:
             _LOGGER.debug("Power state is uninitialised, so initialising all states")
             _power_state = await self._device.async_get_power_state()
@@ -155,6 +165,7 @@ class SonyAVRDevice(MediaPlayerEntity):
     async def async_will_remove_from_hass(self) -> None:
         """Disconnect device object when removed."""
         self._device.set_update_cb(None)
+        await self._device.async_stop_cisip2()
 
         await self._device.command_service.async_disconnect()
 
