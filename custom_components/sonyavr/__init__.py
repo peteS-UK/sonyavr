@@ -5,7 +5,7 @@ import logging
 from homeassistant import config_entries, core
 from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, CONF_PORT, Platform
 
-from .const import CONF_MAX_VOLUME, DOMAIN
+from .const import CONF_MAX_VOLUME, CONF_ZONES, DOMAIN
 from .sonyavr import SonyAVR
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,7 +60,13 @@ def _update_max_volume(sonyavr, value):
 async def options_update_listener(
     hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
-    sonyavr = hass.data[DOMAIN][config_entry.entry_id]["sonyavr"]
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    if sorted(config_entry.options.get(CONF_ZONES, [])) != entry_data.get("zones", []):
+        # Zone entities are created at setup, so reload to add or remove them
+        hass.config_entries.async_schedule_reload(config_entry.entry_id)
+        return
+
+    sonyavr = entry_data["sonyavr"]
     if config_entry.options.get(CONF_MAX_VOLUME) is not None:
         _update_max_volume(sonyavr, config_entry.options[CONF_MAX_VOLUME])
 

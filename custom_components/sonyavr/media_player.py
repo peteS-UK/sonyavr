@@ -32,10 +32,12 @@ from .const import (
     CONF_SOUND_MODES,
     CONF_SOURCE_NAMES,
     CONF_SOURCES,
+    CONF_ZONES,
     DOMAIN,
     SERVICE_SEND_COMMAND,
     SERVICE_UPDATE_STATE,
 )
+from .sonyavr import SOURCE_MENU_MAP, ZONE_FOLLOW_MAIN, ZONE_FOLLOW_MAIN_NAME
 from .source_names import default_name, display_list, display_name
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,7 +75,14 @@ async def async_setup_entry(
 
     sonyavr = config["sonyavr"]
 
-    async_add_entities([SonyAVRDevice(sonyavr, config_entry)])
+    # Opt-in Zone 2 / Zone 3 media players
+    zones = sorted(config_entry.options.get(CONF_ZONES, []))
+    config["zones"] = zones
+    entities = [SonyAVRDevice(sonyavr, config_entry)]
+    entities += [
+        SonyAVRZone(sonyavr, config_entry, int(zone.split()[-1])) for zone in zones
+    ]
+    async_add_entities(entities)
 
     # Register entity services
     platform = entity_platform.async_get_current_platform()
@@ -328,3 +337,125 @@ class SonyAVRDevice(MediaPlayerEntity):
     async def update_status(self):
         _LOGGER.debug("Updating status")
         await self._device.async_update_status()
+
+
+SUPPORT_SONYAVR_ZONE = (
+    MediaPlayerEntityFeature.TURN_ON
+    | MediaPlayerEntityFeature.TURN_OFF
+    | MediaPlayerEntityFeature.VOLUME_SET
+    | MediaPlayerEntityFeature.VOLUME_STEP
+    | MediaPlayerEntityFeature.VOLUME_MUTE
+    | MediaPlayerEntityFeature.SELECT_SOURCE
+)
+
+
+class SonyAVRZone(MediaPlayerEntity):
+    """Zone 2 or Zone 3 of the AVR.
+
+    Power and input are reported by the AVR when they change; until then the
+    state is unknown. Volume is requested at startup.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = "receiver"
+    _attr_supported_features = SUPPORT_SONYAVR_ZONE
+
+    def __init__(self, device, config_entry, zone):
+        self._device = device
+        self._config_entry = config_entry
+        self._zone = zone
+        main_id = "sonyavr_" + self._device.name.replace(" ", "_").replace(
+            "-", "_"
+        ).replace(":", "_")
+        self._attr_unique_id = f"{main_id}_zone{zone}"
+        self._attr_name = f"Zone {zone}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, main_id)})
+
+    @property
+    def _state(self):
+        return self._device.state_service.zones[self._zone]
+
+    @property
+    def _names(self):
+        return self._config_entry.options.get(CONF_SOURCE_NAMES)
+
+    async def async_added_to_hass(self):
+        self._device.set_zone_update_cb(self._zone, self.async_write_ha_state)
+        async_at_started(self.hass, self._async_startup)
+
+    async def _async_startup(self, _hass):
+        # Let the main entity connect first
+        await asyncio.sleep(5)
+        await self._device.async_zone_update_status(self._zone)
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._device.set_zone_update_cb(self._zone, None)
+
+    @property
+    def icon(self):
+        return "mdi:speaker-multiple" if self._state.power else "mdi:speaker-off"
+
+    @property
+    def state(self) -> MediaPlayerState | None:
+        if self._state.power is None:
+            return None
+        return MediaPlayerState.ON if self._state.power else MediaPlayerState.OFF
+
+    @property
+    def source_list(self):
+        main = display_list(
+            self._device.sources,
+            self._config_entry.options.get(CONF_SOURCES),
+            self._names,
+        )
+        return (ZONE_FOLLOW_MAIN_NAME, *main)
+
+    @property
+    def source(self):
+        source = self._state.source
+        if source is None:
+            return None
+        if source == ZONE_FOLLOW_MAIN:
+            return ZONE_FOLLOW_MAIN_NAME
+        return display_name(SOURCE_MENU_MAP.get(source, source), self._names)
+
+    @property
+    def is_volume_muted(self):
+        return self._state.muted
+
+    @property
+    def volume_level(self):
+        volume = self._state.volume
+        if volume is None or not self._device.volume_range:
+            return None
+        level = (volume - self._device.volume_min) / self._device.volume_range
+        return round(min(max(level, 0.0), 1.0), 2)
+
+    @property
+    def extra_state_attributes(self):
+        return {"volume": self._state.volume}
+
+    async def async_turn_on(self) -> None:
+        await self._device.async_zone_turn_on(self._zone)
+
+    async def async_turn_off(self) -> None:
+        await self._device.async_zone_turn_off(self._zone)
+
+    async def async_mute_volume(self, mute: bool) -> None:
+        await self._device.async_zone_set_mute(self._zone, mute)
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        vol = (volume * self._device.volume_range) + self._device.volume_min
+        await self._device.async_zone_volume_set(self._zone, vol)
+
+    async def async_volume_up(self) -> None:
+        await self._device.async_zone_volume_up(self._zone)
+
+    async def async_volume_down(self) -> None:
+        await self._device.async_zone_volume_down(self._zone)
+
+    async def async_select_source(self, source: str) -> None:
+        if source != ZONE_FOLLOW_MAIN_NAME:
+            source = default_name(source, self._names)
+        await self._device.async_zone_set_source(self._zone, source)
