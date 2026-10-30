@@ -6,7 +6,7 @@
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/sonyavr)](#)
 
-This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES, STR-DN1060 and STR-DN850.  
+This custom component implements a media player entity and a remote entity  for Home Assistant to allow for integration with Sony AVR-STR receivers.  It's developed with the STR-DN1040 and has been tested with STR_DA5800ES, STR-DN1060, STR-DN850 and STR-ZA1100ES.  
 
 Online sources suggest similar commands may work with
 
@@ -72,6 +72,13 @@ This entity only supports power on and off, and mute on and off functions.  It d
 
 ### Sensor entity
 A sensor entity will be created with a default entity_id of sensor.sonyavr_volume which shows the current volume of the AVR.
+
+### Zone 2 / Zone 3 media player entities (optional)
+If your AVR has Zone 2 or Zone 3, you can add a media player entity for each zone.  Zones are off by default; to add them, open the integration's Configure options, choose Configuration and select the zones you want under Zones.  The integration reloads and adds (or removes) the zone entities on the same device.
+
+Each zone entity supports power, volume (set and step), mute and source.  The source list includes Source, which makes the zone follow the main zone's input, as well as the inputs shown for the main zone, using any custom input names.
+
+The AVR doesn't report a zone's state on request, so when Home Assistant starts, the zone's volume is read but its power and source show as unknown until they next change, either from Home Assistant or from the AVR or its remote.  Zone support has been tested with the STR-ZA1100ES.
 
 ## Sony AVR. Send Command
 

@@ -5,7 +5,7 @@ import logging
 from homeassistant import config_entries, core
 from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, CONF_PORT, Platform
 
-from .const import CONF_MAX_VOLUME, DOMAIN
+from .const import CONF_MAX_VOLUME, CONF_ZONES, DOMAIN
 from .sonyavr import SonyAVR
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,10 +60,20 @@ def _update_max_volume(sonyavr, value):
 async def options_update_listener(
     hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
-    _update_max_volume(
-        hass.data[DOMAIN][config_entry.entry_id]["sonyavr"],
-        config_entry.options[CONF_MAX_VOLUME],
-    )
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    if sorted(config_entry.options.get(CONF_ZONES, [])) != entry_data.get("zones", []):
+        # Zone entities are created at setup, so reload to add or remove them
+        hass.config_entries.async_schedule_reload(config_entry.entry_id)
+        return
+
+    sonyavr = entry_data["sonyavr"]
+    if config_entry.options.get(CONF_MAX_VOLUME) is not None:
+        _update_max_volume(sonyavr, config_entry.options[CONF_MAX_VOLUME])
+
+    # Refresh the entity so option changes such as the input list show
+    # immediately rather than on the next AVR feedback.
+    if sonyavr._update_cb:
+        sonyavr._update_cb()
 
     """Handle options update."""
     # await hass.config_entries.async_reload(config_entry.entry_id)

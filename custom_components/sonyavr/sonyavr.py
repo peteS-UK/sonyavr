@@ -30,6 +30,15 @@ TCP_PORT_1 = 33335
 TCP_PORT_2 = 33336
 BUFFER_SIZE = 1024
 
+# Reconnect backoff for the feedback listener (seconds)
+RECONNECT_DELAY_MIN = 5
+RECONNECT_DELAY_MAX = 60
+# After power is restored the AVR answers ping well before its control port
+# accepts connections (~90 s on an STR-DA5800ES). Wait for the port, up to this
+# long, before reloading.
+PORT_READY_TIMEOUT = 300
+PORT_READY_POLL = 5
+
 
 SOURCE_NAMES = [
     "bd",
@@ -41,6 +50,7 @@ SOURCE_NAMES = [
     "video2",
     "video3",
     "video4",
+    "aux",
     "md",
     "phono",
     "multi",
@@ -53,7 +63,7 @@ SOURCE_NAMES = [
 ]
 SOUND_FIELD_NAMES = [
     ["twoChannelStereo", "analogDirect", "multiStereo", "afd"],
-    ["pl2Movie", "neo6Cinema", "hdDcs"],
+    ["pl2Movie", "neo6Cinema", "hdDcs", "dolbySurround", "neuralX"],
     [
         "pl2Music",
         "neo6Music",
@@ -78,7 +88,7 @@ SOUND_FIELD_NAMES = [
 # Byte 5 (0x00) seems to be the zone (not STR-DN-860, but maybe STR-DN-1060)
 CMD_SOURCE_MAP = {
     "bd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
-    "dvd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1B, 0x00]),
+    "dvd": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x19, 0x00]),  # was 0x1B (BD); feedback reports DVD as 0x19
     "game": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x1C, 0x00]),
     "satCaTV": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x16, 0x00]),
     "stb": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x3F, 0x00]),
@@ -86,6 +96,7 @@ CMD_SOURCE_MAP = {
     "video2": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x11, 0x00]),
     "video3": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x12, 0x00]),
     "video4": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x13, 0x00]),
+    "aux": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x0A, 0x00]),
     "md": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x04, 0x00]),
     "phono": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x01, 0x00]),
     "multi": bytearray([0x02, 0x04, 0xA0, 0x42, 0x00, 0x20, 0x00]),
@@ -145,6 +156,9 @@ CMD_SOUND_FIELD_MAP = {
     "neoxgame": bytearray([0x02, 0x03, 0xA3, 0x42, 0x37, 0x00]),
     "vocalheight": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3A, 0x00]),
     "pliizmusic": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3D, 0x00]),
+    # Confirmed on STR-ZA1100ES
+    "dolbySurround": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3E, 0x00]),
+    "neuralX": bytearray([0x02, 0x03, 0xA3, 0x42, 0x3F, 0x00]),
 }
 
 # not working ? only preset up and down are working currently
@@ -258,6 +272,15 @@ FEEDBACK_SOURCE_MAP = {
         bytearray([0x21, 0x00, 0x8A]),
         bytearray([0x23, 0x00, 0x88]),
         bytearray([0x20, 0x00, 0x8B]),
+        bytearray([0x00, 0x11, 0x00]),
+        bytearray([0x00, 0x13, 0x00]),
+        bytearray([0x00, 0x10, 0x00]),
+    ],
+    "aux": [
+        bytearray([0x02, 0x07, 0xA8, 0x82, 0x00, 0x0A, 0x00]),
+        bytearray([0x21, 0x00, 0x9A]),
+        bytearray([0x23, 0x00, 0x98]),
+        bytearray([0x20, 0x00, 0x9B]),
         bytearray([0x00, 0x11, 0x00]),
         bytearray([0x00, 0x13, 0x00]),
         bytearray([0x00, 0x10, 0x00]),
@@ -397,6 +420,9 @@ FEEDBACK_SOUND_FIELD_MAP = {
     "neoxgame": bytearray([0x02, 0x04, 0xAB, 0x82, 0x37, 0x00]),
     "vocalheight": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3A, 0x00]),
     "pliizmusic": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3D, 0x00]),
+    # Confirmed on STR-ZA1100ES
+    "dolbySurround": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3E, 0x00]),
+    "neuralX": bytearray([0x02, 0x04, 0xAB, 0x82, 0x3F, 0x00]),
 }
 
 FEEDBACK_PURE_DIRECT_ON = bytearray([0x02, 0x03, 0xAB, 0x98, 0x01])
@@ -433,6 +459,7 @@ SOURCE_MENU_MAP = {
     "video2": "Video 2",
     "video3": "Video 3",
     "video4": "Video 4",
+    "aux": "AUX",
     "md": "MD/Tape",
     "phono": "Phono",
     "multi": "Multi In",
@@ -473,6 +500,8 @@ SOUND_FIELD_MENU_MAP = {
     "neoxgame": "Neo:X Game",
     "vocalheight": "Vocal Height",
     "pliizmusic": "PLIIz Height Music",
+    "dolbySurround": "Dolby Surround",
+    "neuralX": "Neural:X",
 }
 
 SOUND_OPTIMIZER_MENU_MAP = {"off": "Off", "normal": "Normal", "low": "Low"}
@@ -511,8 +540,122 @@ FM_TUNER_MENU_MAP = {
 }
 
 
-class StateService:
+# --- Zone 2 / Zone 3 (binary protocol) -------------------------------------
+# Verified on an STR-ZA1100ES. Byte 4 of commands and feedback packets is the
+# zone: 0x00 main (handled by the maps above), 0x01 Zone 2, 0x02 Zone 3.
+ZONE_BYTES = {2: 0x01, 3: 0x02}
+ZONE_BY_BYTE = {v: k for k, v in ZONE_BYTES.items()}
+# Zone input "Source": the zone follows the main zone's input
+ZONE_FOLLOW_MAIN = "source"
+ZONE_FOLLOW_MAIN_CODE = 0x0F
+ZONE_FOLLOW_MAIN_NAME = "Source"
+ZONE_FEEDBACK_SOURCE_PREFIX = bytearray([0x02, 0x07, 0xA8, 0x82])
+ZONE_FEEDBACK_VOLUME_PREFIX = bytearray([0x02, 0x06, 0xA8, 0x92])
+# Input code reported in zone feedback -> source key
+SOURCE_BY_FEEDBACK_CODE = {fb[0][5]: key for key, fb in FEEDBACK_SOURCE_MAP.items()}
 
+
+def _append_checksum(body):
+    """Append the checksum: two's complement of the sum of bytes after STX."""
+    body = bytearray(body)
+    body.append((-sum(body[1:])) & 0xFF)
+    return body
+
+
+def zone_power_command(zone, on):
+    return bytearray(
+        [0x02, 0x04, 0xA0, 0x60, ZONE_BYTES[zone], 0x01 if on else 0x00, 0x00]
+    )
+
+
+def zone_mute_command(zone, mute):
+    return bytearray(
+        [0x02, 0x04, 0xA0, 0x53, ZONE_BYTES[zone], 0x01 if mute else 0x00, 0x00]
+    )
+
+
+def zone_source_command(zone, source):
+    """source is a SOURCE_MENU_MAP key, or ZONE_FOLLOW_MAIN."""
+    code = (
+        ZONE_FOLLOW_MAIN_CODE
+        if source == ZONE_FOLLOW_MAIN
+        else CMD_SOURCE_MAP[source][5]
+    )
+    return bytearray([0x02, 0x04, 0xA0, 0x42, ZONE_BYTES[zone], code, 0x00])
+
+
+def zone_volume_command(zone, vol, volume_model):
+    """Absolute volume, in the same format the main zone uses for this model."""
+    if volume_model == 1:
+        # dB with 0.5 steps
+        vol = round(float(vol) * 2) / 2
+        half = (vol % 1) == 0.5
+        vol_byte = int(vol) if vol > 0 else int(vol) + 256 - (1 if half else 0)
+        return bytearray(
+            [
+                0x02,
+                0x06,
+                0xA0,
+                0x52,
+                ZONE_BYTES[zone],
+                0x01,
+                vol_byte & 0xFF,
+                0x80 if half else 0x00,
+                0x00,
+            ]
+        )
+    return bytearray(
+        [0x02, 0x06, 0xA0, 0x52, ZONE_BYTES[zone], 0x03, 0x00, int(vol), 0x00]
+    )
+
+
+def zone_volume_step_command(zone, up):
+    return _append_checksum([0x02, 0x03, 0xA0, 0x55 if up else 0x56, ZONE_BYTES[zone]])
+
+
+def parse_zone_feedback(data):
+    """Return (zone, {field: value}) for a Zone 2/3 feedback packet, else None."""
+    if (
+        len(data) >= 9
+        and data[:4] == ZONE_FEEDBACK_SOURCE_PREFIX
+        and data[4] in ZONE_BY_BYTE
+    ):
+        code = data[5]
+        status = data[7]
+        fields = {
+            "source": ZONE_FOLLOW_MAIN
+            if code == ZONE_FOLLOW_MAIN_CODE
+            else SOURCE_BY_FEEDBACK_CODE.get(code),
+            # zone status byte: bit 0 = power, bit 1 = muted
+            "power": bool(status & 0x01),
+        }
+        if fields["power"]:
+            fields["muted"] = bool(status & 0x02)
+        return ZONE_BY_BYTE[data[4]], fields
+    if (
+        len(data) >= 8
+        and data[:4] == ZONE_FEEDBACK_VOLUME_PREFIX
+        and data[4] in ZONE_BY_BYTE
+    ):
+        if data[5] == 0x01:
+            vol = float(data[6] if data[6] < 128 else data[6] - 256) + data[7] / 256.0
+        else:
+            vol = data[7]
+        return ZONE_BY_BYTE[data[4]], {"volume": vol}
+    return None
+
+
+class ZoneState:
+    """State of Zone 2 or Zone 3. None means not yet reported by the AVR."""
+
+    def __init__(self):
+        self.power: bool | None = None
+        self.source: str | None = None
+        self.volume: float | None = None
+        self.muted: bool | None = None
+
+
+class StateService:
     # logger = logging.getLogger("sonyavr.state")
 
     states = {
@@ -572,6 +715,7 @@ class StateService:
         self.auto_standby: bool | None = None
         self.auto_phase_matching: bool | None = None
         self.volume: float = 0
+        self.zones: dict[int, ZoneState] = {zone: ZoneState() for zone in ZONE_BYTES}
 
     def update_power(self, power, state_only=False):
         if self.initialized:
@@ -656,7 +800,6 @@ class StateService:
 
 
 class CommandService:
-
     logger = logging.getLogger("cmd")
     data_logger = logging.getLogger("send")
 
@@ -714,6 +857,10 @@ class CommandService:
             self.command_reader = None
 
     async def async_send_command(self, cmd):
+        if not self.block_sending and self.command_writer is None:
+            _LOGGER.debug("Command socket missing, attempting to reconnect")
+            await self.async_connect()
+
         if not self.block_sending and self.command_writer is not None:
             try:
                 self.command_writer.write(cmd)
@@ -852,7 +999,7 @@ class CommandService:
 
     async def async_select_source(self, source):
         _LOGGER.debug("Select Source %s", source)
-        if self.initialized and self.state_service.source != source:
+        if self.initialized:
             self.state_service.update_source(source)
             await self.async_send_command(CMD_SOURCE_MAP[source])
 
@@ -879,13 +1026,12 @@ class CommandService:
                     return
 
     async def async_select_sound_field(self, sound_field):
-        if self.initialized and self.state_service.sound_field != sound_field:
+        if self.initialized:
             self.state_service.update_sound_field(sound_field)
             await self.async_send_command(CMD_SOUND_FIELD_MAP[sound_field])
 
 
 class DeviceService:
-
     logger = logging.getLogger("dev")
 
     def __init__(self):
@@ -908,7 +1054,6 @@ class DeviceService:
 
 
 class FeedbackWatcher:
-
     logger = logging.getLogger("sonyavr.feed")
     data_logger = logging.getLogger("sonyavr.recv")
 
@@ -919,6 +1064,9 @@ class FeedbackWatcher:
         self.sony_avr: SonyAVR = sony_avr
         self.port: int = port
         self.ended = False
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
+        self._connected = False
 
     async def kill(self):
         self.ended = True
@@ -983,6 +1131,18 @@ class FeedbackWatcher:
             return True
         return False
 
+    def check_zone(self, data):
+        """Apply a Zone 2/3 feedback packet. Returns the zone, or None."""
+        parsed = parse_zone_feedback(data)
+        if parsed is None:
+            return None
+        zone, fields = parsed
+        state = self.state_service.zones[zone]
+        for field, value in fields.items():
+            setattr(state, field, value)
+        _LOGGER.debug("Zone %d: %s", zone, fields)
+        return zone
+
     def check_source(self, data):
         source_switched = False
         for source, source_feedback in FEEDBACK_SOURCE_MAP.items():
@@ -1005,6 +1165,17 @@ class FeedbackWatcher:
                     # FEEDBACK_POWER_ON_MUTE_ON
                     self.state_service.update_power(True, True)
                     self.state_service.update_muted(True)
+                elif (status := self._status_byte(data)) is not None:
+                    power = bool(status & 0x01)
+                    _LOGGER.debug(
+                        "Power/Mute from status byte %s: power %s muted %s",
+                        hex(status),
+                        power,
+                        bool(status & 0x02),
+                    )
+                    self.state_service.update_power(power, True)
+                    if power:
+                        self.state_service.update_muted(bool(status & 0x02))
                 else:
                     _LOGGER.debug(
                         "Unmatched Power/Mute Data %s",
@@ -1012,6 +1183,16 @@ class FeedbackWatcher:
                     )
                 source_switched = True
         return source_switched
+
+    @staticmethod
+    def _status_byte(data):
+        if len(data) < 3:
+            return None
+        if data[-3] & 0xF0 == 0x20:
+            return data[-3]
+        if data[-3] == 0x00 and data[-2] & 0xF0 == 0x10:
+            return data[-2]
+        return None
 
     def check_sound_field(self, data):
         sound_field_switched = False
@@ -1123,33 +1304,47 @@ class FeedbackWatcher:
         return self._connected
 
     async def reconnect(self):
-        try:
-            self.writer.close()
-            await self.writer.wait_closed()
+        """Reconnect the feedback listener, retrying with backoff until it
+        succeeds or the watcher is stopped.
 
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.device_service.ip, self.port),
-                timeout=5.0,  # Set your timeout in seconds here
-            )
-            self.command_service.block_sending = False
-            _LOGGER.error("Reconnected")
-        except IOError as e:
-            _LOGGER.critical(
-                "Cannot create feedback listener re-connection %d: %s",
-                e.errno,
-                e.strerror,
-            )
-            self.ended = True
-        except Exception:
-            _LOGGER.critical(
-                "Unknown error on feedback listener re-connection %s", sys.exc_info()[0]
-            )
-            self.ended = True
+        Previously a single failed attempt set ended = True, so after an AVR
+        power loss the listener stopped permanently and states went stale
+        until the integration was reloaded.
+        """
+        try:
+            if self.writer is not None:
+                self.writer.close()
+                await self.writer.wait_closed()
+        except OSError:
+            _LOGGER.debug("Error closing feedback listener before reconnect")
+
+        delay = RECONNECT_DELAY_MIN
+        while not self.ended:
+            try:
+                self.reader, self.writer = await asyncio.wait_for(
+                    asyncio.open_connection(self.device_service.ip, self.port),
+                    timeout=5.0,
+                )
+                self.command_service.block_sending = False
+                _LOGGER.warning("Feedback listener reconnected")
+                return True
+            except (OSError, TimeoutError) as e:
+                _LOGGER.warning(
+                    "Cannot reconnect feedback listener (%s), retrying in %d s",
+                    e,
+                    delay,
+                )
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, RECONNECT_DELAY_MAX)
+        return False
 
     async def stop(self):
+        # Stop any reconnect loop as well as the read loop
+        self.ended = True
         try:
-            self.writer.close()
-            await self.writer.wait_closed()
+            if self.writer is not None:
+                self.writer.close()
+                await self.writer.wait_closed()
         except OSError as e:
             _LOGGER.critical(
                 "Cannot close feedback listener %d: %s", e.errno, e.strerror
@@ -1158,7 +1353,9 @@ class FeedbackWatcher:
             _LOGGER.exception("Unknown error on listener close %s", sys.exc_info()[0])
 
     async def run(self):
-        if not await self.connect():
+        # The AVR may still be booting (e.g. on reload after power is restored),
+        # so keep retrying rather than giving up and never listening.
+        if not await self.connect() and not await self.reconnect():
             return
 
         while not self.ended:
@@ -1167,11 +1364,25 @@ class FeedbackWatcher:
 
                 data = await self.reader.read(BUFFER_SIZE)
 
+                if not data:
+                    # Empty read means the AVR closed the connection
+                    _LOGGER.warning("Feedback connection closed by AVR, reconnecting")
+                    if not await self.reconnect():
+                        break
+                    continue
+
                 # Prevent feedback loops by block sending commands
                 self.command_service.block_sending = True
 
                 if not self.ended:
                     self.debug_data(data)
+
+                zone = self.check_zone(data)
+                if zone is not None:
+                    if cb := self.sony_avr._zone_update_cbs.get(zone):
+                        cb()
+                    continue
+
                 if (
                     not self.check_timer(data)
                     and not self.check_source(data)
@@ -1208,11 +1419,47 @@ class FeedbackWatcher:
 
 
 class PingWatcherService:
-    def __init__(self, hass, config_entry, host):
+    def __init__(self, hass, config_entry, host, port=TCP_PORT_1):
         self._hass = hass
         self._config_entry = config_entry
         self._host = host
+        self._port = port
         self._stop = False
+
+    async def _port_ready(self):
+        """Return True if the AVR's control port accepts a connection."""
+        try:
+            _reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(self._host, self._port), timeout=3.0
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (OSError, TimeoutError):
+            return False
+
+    async def _wait_for_port(self):
+        """Wait until the control port is up, so the reload can connect.
+
+        Ping answers as soon as the AVR's network comes up, but the control
+        port is refused until it has finished booting. Reloading after a fixed
+        30 s delay could therefore fail with "Connect call failed" (errno 111)
+        and leave the integration without a connection.
+        """
+        waited = 0
+        while not self._stop and waited < PORT_READY_TIMEOUT:
+            if await self._port_ready():
+                _LOGGER.debug("Control port ready after %d s", waited)
+                # Give the AVR a moment to finish initialising
+                await asyncio.sleep(PORT_READY_POLL)
+                return
+            await asyncio.sleep(PORT_READY_POLL)
+            waited += PORT_READY_POLL
+        _LOGGER.warning(
+            "Control port %d not ready after %d s, reloading anyway",
+            self._port,
+            PORT_READY_TIMEOUT,
+        )
 
     async def start(self):
         while not self._stop:
@@ -1256,8 +1503,11 @@ class PingWatcherService:
                 "Connectivity re-established with %s.  Reloading configuration",
                 self._host,
             )
-            await asyncio.sleep(30)
-            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
+            await self._wait_for_port()
+            if not self._stop:
+                self._hass.config_entries.async_schedule_reload(
+                    self._config_entry.entry_id
+                )
 
     async def stop(self):
         self._stop = True
@@ -1283,7 +1533,7 @@ class SonyAVR:
             self.command_service,
             port,
         )
-        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
+        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip, port)
 
         self.initialize_device()
 
@@ -1294,6 +1544,7 @@ class SonyAVR:
         self._update_cb = None
         self._remote_update_cb = None
         self._sensor_update_cb = None
+        self._zone_update_cbs = {}
 
         self.state_service.volume_model = None
         self.state_service.volume_min = 0
@@ -1407,6 +1658,67 @@ class SonyAVR:
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
+
+    def set_zone_update_cb(self, zone, cb):
+        if cb is None:
+            self._zone_update_cbs.pop(zone, None)
+        else:
+            self._zone_update_cbs[zone] = cb
+
+    async def async_zone_turn_on(self, zone):
+        await self.command_service.async_send_command(zone_power_command(zone, True))
+
+    async def async_zone_turn_off(self, zone):
+        await self.command_service.async_send_command(zone_power_command(zone, False))
+
+    async def async_zone_set_mute(self, zone, mute):
+        await self.command_service.async_send_command(zone_mute_command(zone, mute))
+
+    async def async_zone_set_source(self, zone, source):
+        """source is a default input name (SOURCE_MENU_MAP value) or "Source"."""
+        if source == ZONE_FOLLOW_MAIN_NAME:
+            key = ZONE_FOLLOW_MAIN
+        else:
+            key = next((k for k, v in SOURCE_MENU_MAP.items() if v == source), None)
+            if key is None:
+                _LOGGER.error('Source "%s" is not a valid input', source)
+                return
+        await self.command_service.async_send_command(zone_source_command(zone, key))
+
+    async def async_zone_volume_set(self, zone, vol):
+        vol = max(
+            min(vol, self.state_service.volume_max), self.state_service.volume_min
+        )
+        await self.command_service.async_send_command(
+            zone_volume_command(zone, vol, self.state_service.volume_model)
+        )
+
+    async def async_zone_volume_up(self, zone):
+        await self._async_zone_volume_step(zone, True)
+
+    async def async_zone_volume_down(self, zone):
+        await self._async_zone_volume_step(zone, False)
+
+    async def _async_zone_volume_step(self, zone, up):
+        if self.state_service.volume_model == 1:
+            await self.command_service.async_send_command(
+                zone_volume_step_command(zone, up)
+            )
+        elif (volume := self.state_service.zones[zone].volume) is not None:
+            step = self.command_service.scroll_step_volume
+            await self.async_zone_volume_set(zone, volume + (step if up else -step))
+
+    async def async_zone_update_status(self, zone):
+        """Ask the AVR to report the zone's volume without changing it.
+
+        There is no status query, so step the volume down and back up (on an
+        STR-ZA1100ES this works whether or not the zone is on, and does not
+        change its power). Power and input are reported when they change.
+        """
+        if self.state_service.volume_model == 1:
+            await self._async_zone_volume_step(zone, False)
+            await asyncio.sleep(1.0)
+            await self._async_zone_volume_step(zone, True)
 
     def set_sensor_update_cb(self, cb):
         self._sensor_update_cb = cb
