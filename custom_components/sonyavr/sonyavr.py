@@ -925,6 +925,7 @@ class CommandService:
     async def async_set_volume(self, vol):
         if self.state_service.volume_model == 3:
             # Normal Volume Model
+            _vol = min(round(float(vol)), int(self.state_service.volume_max))
             cmd = bytearray(
                 [
                     0x02,
@@ -934,7 +935,7 @@ class CommandService:
                     0x00,
                     0x03,
                     0x00,
-                    min(int(vol), int(self.state_service.volume_max)),
+                    _vol,
                     0x00,
                 ]
             )
@@ -951,7 +952,7 @@ class CommandService:
             _vol_byte = (
                 int(_vol)
                 if _vol > 0
-                else int(_vol) + 256 - (1 if (vol % 1) == 0.5 else 0)
+                else int(_vol) + 256 - (1 if (_vol % 1) == 0.5 else 0)
             )
 
             cmd = bytearray(
@@ -963,12 +964,12 @@ class CommandService:
                     0x00,
                     0x01,
                     _vol_byte,
-                    0x80 if (vol % 1) == 0.5 else 0x00,
+                    0x80 if (_vol % 1) == 0.5 else 0x00,
                     0x00,
                 ]
             )
         await self.async_send_command(cmd)
-        self.state_service.update_volume(vol)
+        self.state_service.update_volume(_vol)
 
     async def async_volume_up(self):
         target_volume = self.state_service.volume + self.scroll_step_volume
