@@ -682,14 +682,30 @@ CISIP2_MAIN_FEATURES = (
     "main.power",
     "main.input",
     "main.volumedb",
+    "main.volumestep",
     "main.mute",
     "audio.soundfield",
 )
+# Answers that carry no value: no reply, unknown feature ("ERR"), or a feature
+# the AVR can't report right now ("NAK", e.g. volumedb when the AVR displays
+# volume in steps, or a zone's input while the zone is off)
+CISIP2_NO_VALUE = (None, "ERR", "NAK", "NACK")
+
+
+def _cisip2_step(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_cisip2_main_feature(feature, value):
-    """Return {field: value} for a CIS-IP2 main-zone feature, else None."""
-    if value in (None, "ERR", "NACK"):
+    """Return {field: value} for a CIS-IP2 main-zone feature, else None.
+
+    Volume is returned as "volume_db" or "volume_step"; which one applies
+    depends on the volume model.
+    """
+    if value in CISIP2_NO_VALUE:
         return None
     if feature == "main.power":
         return {"power": value == "on"}
@@ -697,9 +713,12 @@ def parse_cisip2_main_feature(feature, value):
         return {"muted": value == "on"}
     if feature == "main.volumedb":
         try:
-            return {"volume": float(value)}
+            return {"volume_db": float(value)}
         except (TypeError, ValueError):
             return None
+    if feature == "main.volumestep":
+        step = _cisip2_step(value)
+        return None if step is None else {"volume_step": step}
     if feature == "main.input" and value in CISIP2_INPUTS:
         return {"source": CISIP2_INPUTS[value]}
     if feature == "audio.soundfield" and value in CISIP2_SOUND_FIELDS:
@@ -709,13 +728,13 @@ def parse_cisip2_main_feature(feature, value):
 
 # The AVR reports "sourc" when a zone follows the main zone's input
 CISIP2_FOLLOW_MAIN = {"source", "sourc"}
-CISIP2_ZONE_FEATURES = ("power", "input", "volumedb", "mute")
+CISIP2_ZONE_FEATURES = ("power", "input", "volumedb", "volumestep", "mute")
 
 
 def parse_cisip2_zone_feature(feature, value):
     """Return (zone, {field: value}) for a CIS-IP2 zone feature, else None."""
     zone_name, _, name = (feature or "").partition(".")
-    if not zone_name.startswith("zone") or value in (None, "ERR", "NACK"):
+    if not zone_name.startswith("zone") or value in CISIP2_NO_VALUE:
         return None
     try:
         zone = int(zone_name[4:])
@@ -729,9 +748,12 @@ def parse_cisip2_zone_feature(feature, value):
         return zone, {"muted": value == "on"}
     if name == "volumedb":
         try:
-            return zone, {"volume": float(value)}
+            return zone, {"volume_db": float(value)}
         except (TypeError, ValueError):
             return None
+    if name == "volumestep":
+        step = _cisip2_step(value)
+        return None if step is None else (zone, {"volume_step": step})
     if name == "input":
         if value in CISIP2_FOLLOW_MAIN:
             return zone, {"source": ZONE_FOLLOW_MAIN}
@@ -739,6 +761,26 @@ def parse_cisip2_zone_feature(feature, value):
             return zone, {"source": CISIP2_INPUTS[value]}
         _LOGGER.debug("Unknown CIS-IP2 input %s for zone %d", value, zone)
     return None
+
+
+def cisip2_volume_model(volume_db, volume_step):
+    """Volume model implied by which CIS-IP2 volume features answer.
+
+    An AVR reports either volumedb or volumestep depending on its volume
+    display setting (e.g. STR-ZA3000ES). Returns None if both or neither
+    answer (an STR-ZA1100ES reports both), leaving it to binary feedback.
+    """
+    if volume_db is not None and volume_step is None:
+        return 1
+    if volume_step is not None and volume_db is None:
+        return 3
+    return None
+
+
+def cisip2_volume(fields, volume_model):
+    """Pick the CIS-IP2 volume field that matches the volume model, if any."""
+    key = {1: "volume_db", 3: "volume_step"}.get(volume_model)
+    return fields.get(key) if key else None
 
 
 def apply_volume_model(state_service, command_service, model):
@@ -1805,6 +1847,13 @@ class SonyAVR:
 
     def _apply_zone_fields(self, zone, fields):
         state = self.state_service.zones[zone]
+        if "volume_db" in fields or "volume_step" in fields:
+            fields = dict(fields)
+            volume = cisip2_volume(fields, self.state_service.volume_model)
+            fields.pop("volume_db", None)
+            fields.pop("volume_step", None)
+            if volume is not None:
+                fields["volume"] = volume
         for field, value in fields.items():
             setattr(state, field, value)
 
@@ -1815,8 +1864,9 @@ class SonyAVR:
         if "source" in fields:
             # state_only: the AVR may be in standby
             state.update_source(fields["source"], True)
-        if "volume" in fields:
-            state.update_volume(fields["volume"])
+        volume = cisip2_volume(fields, state.volume_model)
+        if volume is not None:
+            state.update_volume(volume)
         if "muted" in fields:
             state.update_muted(fields["muted"])
         if "sound_field" in fields:
@@ -1835,21 +1885,21 @@ class SonyAVR:
         """
         if not await self._async_cisip2_available() or self._cisip2 is None:
             return False
-        power_read = False
+        fields = {}
         for feature in CISIP2_MAIN_FEATURES:
-            fields = parse_cisip2_main_feature(feature, await self._cisip2.get(feature))
-            if fields:
-                if "volume" in fields and self.state_service.volume_model is None:
-                    # Volume is only meaningful once the volume model is known.
-                    # An AVR reporting volume in dB but not in steps uses the
-                    # dB model (e.g. STR-ZA1100ES); otherwise leave it to the
-                    # binary volume feedback.
-                    if await self._cisip2.get("main.volumestep") in (None, "ERR"):
-                        apply_volume_model(self.state_service, self.command_service, 1)
-                    else:
-                        continue
-                self._apply_main_fields(fields)
-                power_read = power_read or "power" in fields
+            parsed = parse_cisip2_main_feature(feature, await self._cisip2.get(feature))
+            fields.update(parsed or {})
+        if self.state_service.volume_model is None:
+            # Volume is only meaningful once the volume model is known. If the
+            # AVR reports only one of volumedb / volumestep, that sets it;
+            # otherwise it is left to the binary volume feedback.
+            model = cisip2_volume_model(
+                fields.get("volume_db"), fields.get("volume_step")
+            )
+            if model is not None:
+                apply_volume_model(self.state_service, self.command_service, model)
+        self._apply_main_fields(fields)
+        power_read = "power" in fields
         if power_read:
             _LOGGER.debug("Main zone state read over CIS-IP2")
             self._main_updated()
