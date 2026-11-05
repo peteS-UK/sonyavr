@@ -304,13 +304,11 @@ class SonyAVRDevice(MediaPlayerEntity):
             # 	# device is muted or range isn't yet defined
             return 0.0
         else:
-            return float(
-                "%.2f"
-                % (
-                    (self._device.volume - self._device.volume_min)
-                    / self._device.volume_range
-                )
-            )
+            level = (
+                self._device.volume - self._device.volume_min
+            ) / self._device.volume_range
+            # Clamp: MIN (-inf) is reported below the scale's minimum
+            return round(min(max(level, 0.0), 1.0), 2)
 
     async def async_set_volume_level(self, volume: float) -> None:
         _vol = (volume * self._device.volume_range) + self._device.volume_min

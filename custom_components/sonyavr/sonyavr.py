@@ -690,6 +690,12 @@ CISIP2_MAIN_FEATURES = (
 # the AVR can't report right now ("NAK", e.g. volumedb when the AVR displays
 # volume in steps, or a zone's input while the zone is off)
 CISIP2_NO_VALUE = (None, "ERR", "NAK", "NACK")
+# Volume scales of AVRs with CIS-IP2 (STR-ZA1100ES, STR-ZA3000ES), main zone and
+# zones: -92.0 to +23.0 dB (below -92.0 is MIN / -inf, reported as -100.0) or
+# 0 to 100 steps. Older AVRs use the STR_DA5800ES_* / MIN_ / MAX_VOLUME ranges.
+CISIP2_MIN_VOLUME_DB = -92.0
+CISIP2_MAX_VOLUME_DB = 23.0
+CISIP2_MAX_VOLUME_STEP = 100
 
 
 def _cisip2_step(value):
@@ -783,23 +789,33 @@ def cisip2_volume(fields, volume_model):
     return fields.get(key) if key else None
 
 
+def volume_scale(model, cisip2):
+    """(min, max) of the AVR's volume scale for a volume model."""
+    if model == 1:
+        if cisip2:
+            return CISIP2_MIN_VOLUME_DB, CISIP2_MAX_VOLUME_DB
+        return STR_DA5800ES_MIN_VOLUME, STR_DA5800ES_MAX_VOLUME
+    return MIN_VOLUME, CISIP2_MAX_VOLUME_STEP if cisip2 else MAX_VOLUME
+
+
 def apply_volume_model(state_service, command_service, model):
-    """Set the volume model (1 = dB, 3 = step) and its range, if not yet known."""
+    """Set the volume model (1 = dB, 3 = step) and its range, if not yet known.
+
+    The range is the AVR's full volume scale, which is larger on AVRs with
+    CIS-IP2; a configured maximum volume is kept.
+    """
     if state_service.volume_model is not None:
         return
     _LOGGER.debug("Setting Volume Model %s", model)
     state_service.volume_model = model
+    volume_min, volume_max = volume_scale(model, state_service.cisip2)
+    state_service.volume_min = volume_min
+    if state_service.volume_max == 0:
+        # Prevent overwrite of configured volume on reload
+        state_service.volume_max = volume_max
     if model == 1:
-        state_service.volume_min = STR_DA5800ES_MIN_VOLUME
-        if state_service.volume_max == 0:
-            # Prevent overwrite of configured volume on reload
-            state_service.volume_max = STR_DA5800ES_MAX_VOLUME
         command_service.scroll_step_volume = STR_DA5800ES_VOLUME_STEP
     else:
-        state_service.volume_min = MIN_VOLUME
-        if state_service.volume_max == 0:
-            # Prevent overwrite of configured volume on reload
-            state_service.volume_max = MAX_VOLUME
         command_service.scroll_step_volume = VOLUME_STEP
     state_service.volume_range = state_service.volume_max - state_service.volume_min
     _LOGGER.debug("Vol Model %s : Max Volume %s", model, state_service.volume_max)
@@ -857,6 +873,8 @@ class StateService:
         self.volume_model: int | None = None
         self.volume_min: float = 0
         self.volume_max: float = 0
+        # The AVR supports CIS-IP2, so has the larger volume scale
+        self.cisip2: bool = False
         self.volume_step: int | None = None
         self.volume_range: float
         self.power: bool | None = None
@@ -1960,11 +1978,29 @@ class SonyAVR:
                     self._cisip2 = client
                     self._cisip2_supported = True
                     _LOGGER.info("Using CIS-IP2 to read AVR state")
+                    self._use_cisip2_volume_scale()
                 else:
                     await client.close()
                     self._cisip2_supported = False
                     _LOGGER.info("CIS-IP2 not available; using control port only")
             return self._cisip2_supported
+
+    def _use_cisip2_volume_scale(self):
+        """Use the CIS-IP2 AVRs' volume scale, also if binary volume feedback
+        already set the volume model with the older scale."""
+        state = self.state_service
+        state.cisip2 = True
+        model = state.volume_model
+        if model is None:
+            return
+        _, old_max = volume_scale(model, False)
+        new_min, new_max = volume_scale(model, True)
+        state.volume_min = new_min
+        if state.volume_max == old_max:
+            # Default, not a configured maximum
+            state.volume_max = new_max
+        state.volume_range = state.volume_max - state.volume_min
+        _LOGGER.debug("Vol Model %s : Max Volume %s", model, state.volume_max)
 
     async def async_stop_cisip2(self):
         async with self._cisip2_lock:
