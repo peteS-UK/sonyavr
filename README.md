@@ -1,7 +1,7 @@
-# Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850, STR-DN1060 & Other AVRs
+  # Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850, STR-DN1060 & Other AVRs
 
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
+[![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#installation-with-marketplace)
 [![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/sonyavr)](#)
@@ -33,17 +33,24 @@ The integration is a Local Push integration - i.e. it subscribes to notification
 ## Network Standby
 The integration requires Network Standby to be available and enabled on the AVR.  Please make sure Network Standby is enabled befoer installing the integration.
 
-## Installation
+## Installation with Marketplace
 
-The preferred installation approach is via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
+The [Marketplace](https://www.home-assistant.io/integrations/marketplace/) is built into **Home Assistant 2026.11 and later**; no separate store installation is needed.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=peteS-UK&repository=sonyavr&category=integration)
+1. As an administrator, open **Settings → Marketplace** and accept its first-use notice if prompted.
+2. Search for **Sony AVR** and open its page.
+3. Choose **Install**, review the version, then confirm **Install**. Account setup opens when installation finishes; continue with [Configuration](#configuration). A fresh installation does not need a restart.
 
+Existing HACS installations migrate automatically when you upgrade Home Assistant to 2026.11. Your installed integration and updates carry over; you do not need to reinstall it.
+
+## Installation with HACS
+
+For older versions of Home Assistant, you can install via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  Search for **Sony AVR** and install the integration.
+
+## Manual Installation
 If you want to download the integration manually, create a new folder called sonyavr under your custom_components folder in your config folder.  If the custom_components folder doesn't exist, create it first.  Once created, download the files and folders from the [github repo](https://github.com/peteS-UK/sonyavr/tree/main/custom_components/sonyavr) into this new sonyavr folder.
 
 Once downloaded either via HACS or manually, restart your Home Assistant server.
-
-## Configuration
 
 Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the SONY AVR integration, or click the shortcut button below (requires My Homeassistant configured).
 
@@ -51,6 +58,8 @@ Configuration is done through the Home Assistant UI.  Once you're installed the 
 instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=sonyavr)
 
 This will display the configuration page.  
+
+## Configuration
 
 ### Manual Entry
 You need to enter the details of your processor manually - IP address, name, model and port.
