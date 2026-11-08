@@ -2057,7 +2057,17 @@ class SonyAVR:
             await asyncio.sleep(2.0)
 
     async def async_get_power_state(self):
+        """True or False, or None if the AVR's control port isn't reachable.
+
+        No answer from a reachable AVR means it is off; an unreachable AVR may
+        well be on, so its state is unknown.
+        """
         _LOGGER.debug("Getting Power State")
+        if self.command_service.command_writer is None:
+            await self.command_service.async_connect()
+        if self.command_service.command_writer is None:
+            _LOGGER.debug("Control port not reachable, so power state is unknown")
+            return None
         await self.command_service.async_send_command(CMD_MUTE)
         await asyncio.sleep(1.0)
 
@@ -2069,6 +2079,17 @@ class SonyAVR:
             await self.command_service.async_send_command(CMD_UNMUTE)
             await asyncio.sleep(1.0)
             return True
+
+    async def async_reload_when_reachable(self):
+        """Reload the integration once the AVR's control port answers.
+
+        Used when the AVR is unreachable at startup, so its state is read
+        normally rather than guessed.
+        """
+        while not await self.ping_watcher._port_ready():
+            await asyncio.sleep(PORT_READY_POLL)
+        _LOGGER.info("AVR reachable, reloading to read its state")
+        self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
 
     async def run_notifier(self):
         _LOGGER.debug("Setting up Sony AVR Notify Listener")

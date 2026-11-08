@@ -155,6 +155,14 @@ class SonyAVRDevice(MediaPlayerEntity):
         if self._device.state_service.power is None:
             _LOGGER.debug("Power state is uninitialised, so initialising all states")
             _power_state = await self._device.async_get_power_state()
+            if _power_state is None:
+                # Unreachable, which doesn't mean off: power cycling now would
+                # turn a running AVR off once it is back
+                _LOGGER.warning(
+                    "AVR not reachable at startup; will initialise when it is"
+                )
+                await self._device.async_reload_when_reachable()
+                return
             _power_cycle = self._config_entry.options.get(CONF_POWER_CYCLE_INIT, True)
 
             # Turn on and off to force the feedback
