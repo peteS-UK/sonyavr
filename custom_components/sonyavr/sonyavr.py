@@ -1299,7 +1299,9 @@ class FeedbackWatcher:
             if source_feedback[0][:6] == data[:6]:
                 _LOGGER.debug("Source matched %s", source)
                 _LOGGER.debug("Extra data %s", binascii.hexlify(data[-3:], ":"))
-                self.state_service.update_source(source)
+                # state_only: power is set below from the status, so it doesn't
+                # flicker on when the AVR reports it is turning off
+                self.state_service.update_source(source, True)
                 # The command also contains the power and muted states
                 if source_feedback[3] == data[-3:] or source_feedback[6] == data[-3:]:
                     _LOGGER.debug("Power Off")
@@ -1331,6 +1333,8 @@ class FeedbackWatcher:
                         "Unmatched Power/Mute Data %s",
                         binascii.hexlify(data[-3:], ":"),
                     )
+                    # Source feedback without a known status: assume on
+                    self.state_service.update_power(True, True)
                 source_switched = True
         return source_switched
 
