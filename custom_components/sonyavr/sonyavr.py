@@ -821,6 +821,29 @@ def apply_volume_model(state_service, command_service, model):
     _LOGGER.debug("Vol Model %s : Max Volume %s", model, state_service.volume_max)
 
 
+def change_volume_model(state_service, command_service, model):
+    """Set the volume model, switching it if the AVR reports a different one.
+
+    The model follows the AVR's Volume Display setting (dB or steps), which
+    can be changed while running.
+    """
+    old_model = state_service.volume_model
+    if old_model is not None and old_model != model:
+        _LOGGER.info("AVR volume model changed from %s to %s", old_model, model)
+        _, default_max = volume_scale(old_model, state_service.cisip2)
+        if state_service.volume_max != default_max:
+            # A configured maximum is in the old model's units
+            _LOGGER.warning(
+                "Maximum volume %s was set for volume model %s; using the full "
+                "range until it is set for the AVR's new volume display",
+                state_service.volume_max,
+                old_model,
+            )
+        state_service.volume_model = None
+        state_service.volume_max = 0
+    apply_volume_model(state_service, command_service, model)
+
+
 class ZoneState:
     """State of Zone 2 or Zone 3. None means not yet reported by the AVR."""
 
@@ -1255,8 +1278,9 @@ class FeedbackWatcher:
 
     async def check_volume(self, data):
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
-            # Check if AVR is STR or not
-            apply_volume_model(
+            # Byte 5 is the volume model (01 = dB); it changes with the AVR's
+            # Volume Display setting
+            change_volume_model(
                 self.state_service, self.command_service, 1 if data[5] == 1 else 3
             )
 
@@ -1911,15 +1935,14 @@ class SonyAVR:
         for feature in CISIP2_MAIN_FEATURES:
             parsed = parse_cisip2_main_feature(feature, await self._cisip2.get(feature))
             fields.update(parsed or {})
-        if self.state_service.volume_model is None:
-            # Volume is only meaningful once the volume model is known. If the
-            # AVR reports only one of volumedb / volumestep, that sets it;
-            # otherwise it is left to the binary volume feedback.
-            model = cisip2_volume_model(
-                fields.get("volume_db"), fields.get("volume_step")
-            )
-            if model is not None:
-                apply_volume_model(self.state_service, self.command_service, model)
+        # Volume is only meaningful once the volume model is known. If the AVR
+        # reports only one of volumedb / volumestep, that sets it (or switches
+        # it, if the Volume Display setting changed); otherwise it is left to
+        # the binary volume feedback. Single notifications don't change it: an
+        # AVR reporting both would flip between models.
+        model = cisip2_volume_model(fields.get("volume_db"), fields.get("volume_step"))
+        if model is not None:
+            change_volume_model(self.state_service, self.command_service, model)
         self._apply_main_fields(fields)
         power_read = "power" in fields
         if power_read:
