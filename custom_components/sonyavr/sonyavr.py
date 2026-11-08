@@ -1613,7 +1613,7 @@ class PingWatcherService:
 
     async def start(self):
         while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
                 # Disable the listener
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 self._stop = True
@@ -1638,7 +1638,7 @@ class PingWatcherService:
                 "Connectivity lost to %s.  Waiting for availability.", self._host
             )
         while not await ping(self._host, timeout=1) and not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 # Disable the listener
                 self._stop = True
