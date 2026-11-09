@@ -696,6 +696,10 @@ CISIP2_NO_VALUE = (None, "ERR", "NAK", "NACK")
 CISIP2_MIN_VOLUME_DB = -92.0
 CISIP2_MAX_VOLUME_DB = 23.0
 CISIP2_MAX_VOLUME_STEP = 100
+# Right after an HA restart the AVR can be unreachable for a few seconds, so
+# CIS-IP2 and the power query are tried a few times before giving up
+STARTUP_ATTEMPTS = 3
+STARTUP_RETRY_DELAY = 3  # seconds
 
 
 def _cisip2_step(value):
@@ -819,6 +823,29 @@ def apply_volume_model(state_service, command_service, model):
         command_service.scroll_step_volume = VOLUME_STEP
     state_service.volume_range = state_service.volume_max - state_service.volume_min
     _LOGGER.debug("Vol Model %s : Max Volume %s", model, state_service.volume_max)
+
+
+def change_volume_model(state_service, command_service, model):
+    """Set the volume model, switching it if the AVR reports a different one.
+
+    The model follows the AVR's Volume Display setting (dB or steps), which
+    can be changed while running.
+    """
+    old_model = state_service.volume_model
+    if old_model is not None and old_model != model:
+        _LOGGER.info("AVR volume model changed from %s to %s", old_model, model)
+        _, default_max = volume_scale(old_model, state_service.cisip2)
+        if state_service.volume_max != default_max:
+            # A configured maximum is in the old model's units
+            _LOGGER.warning(
+                "Maximum volume %s was set for volume model %s; using the full "
+                "range until it is set for the AVR's new volume display",
+                state_service.volume_max,
+                old_model,
+            )
+        state_service.volume_model = None
+        state_service.volume_max = 0
+    apply_volume_model(state_service, command_service, model)
 
 
 class ZoneState:
@@ -1255,8 +1282,9 @@ class FeedbackWatcher:
 
     async def check_volume(self, data):
         if FEEDBACK_VOLUME[0:5] == data[0:5] or FEEDBACK_VOLUME_1[0:5] == data[0:5]:
-            # Check if AVR is STR or not
-            apply_volume_model(
+            # Byte 5 is the volume model (01 = dB); it changes with the AVR's
+            # Volume Display setting
+            change_volume_model(
                 self.state_service, self.command_service, 1 if data[5] == 1 else 3
             )
 
@@ -1299,7 +1327,9 @@ class FeedbackWatcher:
             if source_feedback[0][:6] == data[:6]:
                 _LOGGER.debug("Source matched %s", source)
                 _LOGGER.debug("Extra data %s", binascii.hexlify(data[-3:], ":"))
-                self.state_service.update_source(source)
+                # state_only: power is set below from the status, so it doesn't
+                # flicker on when the AVR reports it is turning off
+                self.state_service.update_source(source, True)
                 # The command also contains the power and muted states
                 if source_feedback[3] == data[-3:] or source_feedback[6] == data[-3:]:
                     _LOGGER.debug("Power Off")
@@ -1331,6 +1361,8 @@ class FeedbackWatcher:
                         "Unmatched Power/Mute Data %s",
                         binascii.hexlify(data[-3:], ":"),
                     )
+                    # Source feedback without a known status: assume on
+                    self.state_service.update_power(True, True)
                 source_switched = True
         return source_switched
 
@@ -1613,7 +1645,7 @@ class PingWatcherService:
 
     async def start(self):
         while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
                 # Disable the listener
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 self._stop = True
@@ -1638,7 +1670,7 @@ class PingWatcherService:
                 "Connectivity lost to %s.  Waiting for availability.", self._host
             )
         while not await ping(self._host, timeout=1) and not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 # Disable the listener
                 self._stop = True
@@ -1754,13 +1786,53 @@ class SonyAVR:
         await self.command_service.async_unmute()
 
     async def async_volume_up(self) -> None:
+        if self._cisip2_sets_volume():
+            await self._async_cisip2_volume_step(+1)
+            return
         await self.command_service.async_volume_up()
 
     async def async_volume_down(self) -> None:
+        if self._cisip2_sets_volume():
+            await self._async_cisip2_volume_step(-1)
+            return
         await self.command_service.async_volume_down()
 
     async def async_volume_set(self, _vol) -> None:
+        if self._cisip2_sets_volume() and await self._async_cisip2_set_volume(_vol):
+            return
         await self.command_service.async_set_volume(_vol)
+
+    def _cisip2_sets_volume(self):
+        """Whether to set the main volume over CIS-IP2: in step mode (Volume
+        Display = Absolute), an STR-ZA3000ES ignores binary set-volume
+        commands, but accepts a CIS-IP2 set of main.volumestep."""
+        return (
+            self.state_service.volume_model == 3
+            and self._cisip2 is not None
+            and self._cisip2.connected
+        )
+
+    async def _async_cisip2_volume_step(self, direction):
+        state = self.state_service
+        if state.volume is None:
+            return
+        target = state.volume + direction * self.command_service.scroll_step_volume
+        if state.volume_min <= target <= state.volume_max:
+            await self.async_volume_set(target)
+
+    async def _async_cisip2_set_volume(self, vol):
+        """Set the main volume step over CIS-IP2. False if the AVR refused it."""
+        state = self.state_service
+        step = int(max(min(round(float(vol)), state.volume_max), state.volume_min))
+        answer = await self._cisip2.set("main.volumestep", step)
+        if answer in ("NAK", "NACK", "ERR"):
+            # Refused; no answer at all is taken as accepted, as the change is
+            # reported back by notification and binary feedback anyway
+            _LOGGER.debug("CIS-IP2 set main.volumestep %s refused: %s", step, answer)
+            return False
+        _LOGGER.debug("CIS-IP2 set main.volumestep %s: %s", step, answer)
+        state.update_volume(step)
+        return True
 
     async def async_set_mute(self, mute) -> None:
         # await self._device.async_turn_on()
@@ -1907,15 +1979,14 @@ class SonyAVR:
         for feature in CISIP2_MAIN_FEATURES:
             parsed = parse_cisip2_main_feature(feature, await self._cisip2.get(feature))
             fields.update(parsed or {})
-        if self.state_service.volume_model is None:
-            # Volume is only meaningful once the volume model is known. If the
-            # AVR reports only one of volumedb / volumestep, that sets it;
-            # otherwise it is left to the binary volume feedback.
-            model = cisip2_volume_model(
-                fields.get("volume_db"), fields.get("volume_step")
-            )
-            if model is not None:
-                apply_volume_model(self.state_service, self.command_service, model)
+        # Volume is only meaningful once the volume model is known. If the AVR
+        # reports only one of volumedb / volumestep, that sets it (or switches
+        # it, if the Volume Display setting changed); otherwise it is left to
+        # the binary volume feedback. Single notifications don't change it: an
+        # AVR reporting both would flip between models.
+        model = cisip2_volume_model(fields.get("volume_db"), fields.get("volume_step"))
+        if model is not None:
+            change_volume_model(self.state_service, self.command_service, model)
         self._apply_main_fields(fields)
         power_read = "power" in fields
         if power_read:
@@ -1967,20 +2038,29 @@ class SonyAVR:
         """Connect to CIS-IP2 once; return whether it can be used."""
         async with self._cisip2_lock:
             if self._cisip2_supported is None:
-                client = CisIp2Client(
-                    self.device_service.ip,
-                    on_notify=self._on_cisip2_notify,
-                    on_reconnect=self._async_cisip2_reconnected,
-                )
-                if await client.connect() and parse_cisip2_main_feature(
-                    "main.power", await client.get("main.power")
-                ):
-                    self._cisip2 = client
-                    self._cisip2_supported = True
-                    _LOGGER.info("Using CIS-IP2 to read AVR state")
-                    self._use_cisip2_volume_scale()
-                else:
+                for attempt in range(1, STARTUP_ATTEMPTS + 1):
+                    client = CisIp2Client(
+                        self.device_service.ip,
+                        on_notify=self._on_cisip2_notify,
+                        on_reconnect=self._async_cisip2_reconnected,
+                    )
+                    if await client.connect() and parse_cisip2_main_feature(
+                        "main.power", await client.get("main.power")
+                    ):
+                        self._cisip2 = client
+                        self._cisip2_supported = True
+                        _LOGGER.info("Using CIS-IP2 to read AVR state")
+                        self._use_cisip2_volume_scale()
+                        break
                     await client.close()
+                    if attempt < STARTUP_ATTEMPTS:
+                        _LOGGER.debug(
+                            "CIS-IP2 attempt %d of %d failed, retrying",
+                            attempt,
+                            STARTUP_ATTEMPTS,
+                        )
+                        await asyncio.sleep(STARTUP_RETRY_DELAY)
+                else:
                     self._cisip2_supported = False
                     _LOGGER.info("CIS-IP2 not available; using control port only")
             return self._cisip2_supported
@@ -2053,9 +2133,34 @@ class SonyAVR:
             await asyncio.sleep(2.0)
 
     async def async_get_power_state(self):
+        """True or False, or None if the AVR's control port isn't reachable.
+
+        No answer from a reachable AVR means it is off; an unreachable AVR may
+        well be on, so its state is unknown.
+        """
         _LOGGER.debug("Getting Power State")
-        await self.command_service.async_send_command(CMD_MUTE)
-        await asyncio.sleep(1.0)
+        # No answer can also mean the connection isn't up yet just after a
+        # restart, so ask more than once before deciding
+        reachable = False
+        for attempt in range(1, STARTUP_ATTEMPTS + 1):
+            if self.command_service.command_writer is None:
+                await self.command_service.async_connect()
+            if self.command_service.command_writer is not None:
+                reachable = True
+                await self.command_service.async_send_command(CMD_MUTE)
+                await asyncio.sleep(1.0)
+                if self.state_service.muted is not None:
+                    break
+            if attempt < STARTUP_ATTEMPTS:
+                _LOGGER.debug(
+                    "No answer to power query (attempt %d of %d), retrying",
+                    attempt,
+                    STARTUP_ATTEMPTS,
+                )
+                await asyncio.sleep(STARTUP_RETRY_DELAY)
+        if not reachable:
+            _LOGGER.info("AVR not reachable, so its power state is unknown")
+            return None
 
         if self.state_service.muted is None:
             _LOGGER.debug("No response from AVR, so assuming power is off")
@@ -2065,6 +2170,21 @@ class SonyAVR:
             await self.command_service.async_send_command(CMD_UNMUTE)
             await asyncio.sleep(1.0)
             return True
+
+    async def async_reload_when_reachable(self):
+        """Reload the integration once the AVR's control port answers.
+
+        Used when the AVR is unreachable at startup, so its state is read
+        normally rather than guessed.
+        """
+        while not self.ping_watcher._stop:
+            if await self.ping_watcher._port_ready():
+                _LOGGER.info("AVR reachable, reloading to read its state")
+                self._hass.config_entries.async_schedule_reload(
+                    self._config_entry.entry_id
+                )
+                return
+            await asyncio.sleep(PORT_READY_POLL)
 
     async def run_notifier(self):
         _LOGGER.debug("Setting up Sony AVR Notify Listener")
