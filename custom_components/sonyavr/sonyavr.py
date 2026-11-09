@@ -696,6 +696,10 @@ CISIP2_NO_VALUE = (None, "ERR", "NAK", "NACK")
 CISIP2_MIN_VOLUME_DB = -92.0
 CISIP2_MAX_VOLUME_DB = 23.0
 CISIP2_MAX_VOLUME_STEP = 100
+# Right after an HA restart the AVR can be unreachable for a few seconds, so
+# CIS-IP2 and the power query are tried a few times before giving up
+STARTUP_ATTEMPTS = 3
+STARTUP_RETRY_DELAY = 3  # seconds
 
 
 def _cisip2_step(value):
@@ -2034,20 +2038,29 @@ class SonyAVR:
         """Connect to CIS-IP2 once; return whether it can be used."""
         async with self._cisip2_lock:
             if self._cisip2_supported is None:
-                client = CisIp2Client(
-                    self.device_service.ip,
-                    on_notify=self._on_cisip2_notify,
-                    on_reconnect=self._async_cisip2_reconnected,
-                )
-                if await client.connect() and parse_cisip2_main_feature(
-                    "main.power", await client.get("main.power")
-                ):
-                    self._cisip2 = client
-                    self._cisip2_supported = True
-                    _LOGGER.info("Using CIS-IP2 to read AVR state")
-                    self._use_cisip2_volume_scale()
-                else:
+                for attempt in range(1, STARTUP_ATTEMPTS + 1):
+                    client = CisIp2Client(
+                        self.device_service.ip,
+                        on_notify=self._on_cisip2_notify,
+                        on_reconnect=self._async_cisip2_reconnected,
+                    )
+                    if await client.connect() and parse_cisip2_main_feature(
+                        "main.power", await client.get("main.power")
+                    ):
+                        self._cisip2 = client
+                        self._cisip2_supported = True
+                        _LOGGER.info("Using CIS-IP2 to read AVR state")
+                        self._use_cisip2_volume_scale()
+                        break
                     await client.close()
+                    if attempt < STARTUP_ATTEMPTS:
+                        _LOGGER.debug(
+                            "CIS-IP2 attempt %d of %d failed, retrying",
+                            attempt,
+                            STARTUP_ATTEMPTS,
+                        )
+                        await asyncio.sleep(STARTUP_RETRY_DELAY)
+                else:
                     self._cisip2_supported = False
                     _LOGGER.info("CIS-IP2 not available; using control port only")
             return self._cisip2_supported
@@ -2126,13 +2139,28 @@ class SonyAVR:
         well be on, so its state is unknown.
         """
         _LOGGER.debug("Getting Power State")
-        if self.command_service.command_writer is None:
-            await self.command_service.async_connect()
-        if self.command_service.command_writer is None:
-            _LOGGER.debug("Control port not reachable, so power state is unknown")
+        # No answer can also mean the connection isn't up yet just after a
+        # restart, so ask more than once before deciding
+        reachable = False
+        for attempt in range(1, STARTUP_ATTEMPTS + 1):
+            if self.command_service.command_writer is None:
+                await self.command_service.async_connect()
+            if self.command_service.command_writer is not None:
+                reachable = True
+                await self.command_service.async_send_command(CMD_MUTE)
+                await asyncio.sleep(1.0)
+                if self.state_service.muted is not None:
+                    break
+            if attempt < STARTUP_ATTEMPTS:
+                _LOGGER.debug(
+                    "No answer to power query (attempt %d of %d), retrying",
+                    attempt,
+                    STARTUP_ATTEMPTS,
+                )
+                await asyncio.sleep(STARTUP_RETRY_DELAY)
+        if not reachable:
+            _LOGGER.info("AVR not reachable, so its power state is unknown")
             return None
-        await self.command_service.async_send_command(CMD_MUTE)
-        await asyncio.sleep(1.0)
 
         if self.state_service.muted is None:
             _LOGGER.debug("No response from AVR, so assuming power is off")
@@ -2149,10 +2177,14 @@ class SonyAVR:
         Used when the AVR is unreachable at startup, so its state is read
         normally rather than guessed.
         """
-        while not await self.ping_watcher._port_ready():
+        while not self.ping_watcher._stop:
+            if await self.ping_watcher._port_ready():
+                _LOGGER.info("AVR reachable, reloading to read its state")
+                self._hass.config_entries.async_schedule_reload(
+                    self._config_entry.entry_id
+                )
+                return
             await asyncio.sleep(PORT_READY_POLL)
-        _LOGGER.info("AVR reachable, reloading to read its state")
-        self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
 
     async def run_notifier(self):
         _LOGGER.debug("Setting up Sony AVR Notify Listener")
