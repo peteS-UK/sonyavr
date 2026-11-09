@@ -1,7 +1,9 @@
 """Minimal Sony CIS-IP2 client (JSON over TCP, port 33336).
 
-Used only to read Zone 2 / Zone 3 state, which the binary control protocol
-cannot be asked for. Commands still use the binary protocol.
+Used to read state, which the binary control protocol cannot be asked for,
+and to set the main volume in step mode (Volume Display = Absolute), which
+the binary protocol ignores on an STR-ZA3000ES. Other commands still use the
+binary protocol.
 
 Requests are one JSON object per line:
     {"id": 1, "type": "get", "feature": "zone2.power"}
@@ -97,13 +99,24 @@ class CisIp2Client:
 
     async def get(self, feature: str) -> Any:
         """Return the value of a feature, or None if there is no answer."""
+        return await self._request({"type": "get", "feature": feature})
+
+    async def set(self, feature: str, value: Any) -> Any:
+        """Set a feature. Returns the AVR's answer, or None if there is none.
+
+        On an STR-ZA3000ES, setting main.volumestep changes the volume, and
+        the change is reported back as a notification and binary feedback.
+        """
+        return await self._request({"type": "set", "feature": feature, "value": value})
+
+    async def _request(self, request: dict) -> Any:
         if self._writer is None:
             return None
         self._next_id += 1
         request_id = self._next_id
         future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        request = {"id": request_id, "type": "get", "feature": feature}
+        request = {"id": request_id, **request}
         try:
             self._writer.write((json.dumps(request) + "\n").encode())
             await self._writer.drain()

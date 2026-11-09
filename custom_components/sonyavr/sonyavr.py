@@ -1782,13 +1782,53 @@ class SonyAVR:
         await self.command_service.async_unmute()
 
     async def async_volume_up(self) -> None:
+        if self._cisip2_sets_volume():
+            await self._async_cisip2_volume_step(+1)
+            return
         await self.command_service.async_volume_up()
 
     async def async_volume_down(self) -> None:
+        if self._cisip2_sets_volume():
+            await self._async_cisip2_volume_step(-1)
+            return
         await self.command_service.async_volume_down()
 
     async def async_volume_set(self, _vol) -> None:
+        if self._cisip2_sets_volume() and await self._async_cisip2_set_volume(_vol):
+            return
         await self.command_service.async_set_volume(_vol)
+
+    def _cisip2_sets_volume(self):
+        """Whether to set the main volume over CIS-IP2: in step mode (Volume
+        Display = Absolute), an STR-ZA3000ES ignores binary set-volume
+        commands, but accepts a CIS-IP2 set of main.volumestep."""
+        return (
+            self.state_service.volume_model == 3
+            and self._cisip2 is not None
+            and self._cisip2.connected
+        )
+
+    async def _async_cisip2_volume_step(self, direction):
+        state = self.state_service
+        if state.volume is None:
+            return
+        target = state.volume + direction * self.command_service.scroll_step_volume
+        if state.volume_min <= target <= state.volume_max:
+            await self.async_volume_set(target)
+
+    async def _async_cisip2_set_volume(self, vol):
+        """Set the main volume step over CIS-IP2. False if the AVR refused it."""
+        state = self.state_service
+        step = int(max(min(round(float(vol)), state.volume_max), state.volume_min))
+        answer = await self._cisip2.set("main.volumestep", step)
+        if answer in ("NAK", "NACK", "ERR"):
+            # Refused; no answer at all is taken as accepted, as the change is
+            # reported back by notification and binary feedback anyway
+            _LOGGER.debug("CIS-IP2 set main.volumestep %s refused: %s", step, answer)
+            return False
+        _LOGGER.debug("CIS-IP2 set main.volumestep %s: %s", step, answer)
+        state.update_volume(step)
+        return True
 
     async def async_set_mute(self, mute) -> None:
         # await self._device.async_turn_on()
