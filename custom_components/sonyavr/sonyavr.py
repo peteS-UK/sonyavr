@@ -1128,9 +1128,17 @@ class CommandService:
                 self.state_service.update_hdmiout(True)
 
     async def async_set_volume(self, vol):
+        """Set the volume, in the AVR's own units (dB or steps)."""
+        if self.state_service.volume_model is None:
+            # The range isn't known yet, so the value can't be checked or sent
+            _LOGGER.warning("Volume model not known yet, so volume %s not set", vol)
+            return
         if self.state_service.volume_model == 3:
             # Normal Volume Model
-            _vol = min(round(float(vol)), int(self.state_service.volume_max))
+            _vol = max(
+                min(round(float(vol)), int(self.state_service.volume_max)),
+                int(self.state_service.volume_min),
+            )
             cmd = bytearray(
                 [
                     0x02,
