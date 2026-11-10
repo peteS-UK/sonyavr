@@ -142,9 +142,10 @@ class SonyAVRDevice(MediaPlayerEntity):
 
         await asyncio.sleep(1)
 
-        if self._device.state_service.power is None and (
-            await self._device.async_cisip2_read_main()
-        ):
+        # Always read over CIS-IP2 when the AVR has it, even if a command (e.g.
+        # an automation turning the AVR on at HA start) already set the power
+        # state: this is also what connects CIS-IP2 for the session
+        if await self._device.async_cisip2_read_main():
             # State read directly, so no need to nudge mute, volume or input,
             # or to power cycle the AVR
             if self._device.state_service.volume_model is None:
