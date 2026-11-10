@@ -2129,8 +2129,13 @@ class SonyAVR:
         _LOGGER.debug("Initialising Volume State")
         await self.command_service.async_send_command(CMD_VOLUME_DOWN)
         await asyncio.sleep(1.0)
-        if self.state_service.volume_model == 1:
-            # With model 3, volume down only works with volume menu active, up is only needed on == 1
+        if self.state_service.volume_model == 1 or (
+            self.state_service.volume_model == 3 and self.state_service.cisip2
+        ):
+            # Undo the volume down. Older step-volume AVRs (e.g. STR-DA1040ES)
+            # only step the volume with the volume menu open, so the down
+            # didn't change it; AVRs with CIS-IP2 (e.g. STR-ZA3000ES) step it
+            # without the menu, so the down did
             await self.command_service.async_send_command(CMD_VOLUME_UP)
             await asyncio.sleep(1.0)
         if self.state_service.source is None:
