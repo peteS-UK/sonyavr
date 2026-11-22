@@ -66,6 +66,35 @@ You need to enter the details of your processor manually - IP address, name, mod
 
 When you select Submit, the configuration will setup the components in Home Assistant.  It will create one device, two entities and a service.
 
+## Options
+
+Omce installed, you can configure the integration using the Configure wheel on the integration configuration entry.  Selecting Configure will give 3 options
+
+<img width="1166" height="552" alt="image" src="https://github.com/user-attachments/assets/16b81908-e4cd-4ef7-828d-886f15512fc3" />
+
+### Configuration
+
+<img width="1164" height="1278" alt="image" src="https://github.com/user-attachments/assets/861df1ae-916f-42d8-8df4-7db5eae19229" />
+
+| Option | Description |
+| --- | --- |
+| Maximum Allowed Volume | Restrict the maximum volume to prevent, for example, very loud volume being selected through the volume slider |
+| Number of seconds between connectivity check pings | The integration can periodically ping the AVR to check connectivity.  Selecting 0 will disable the ping |
+| Initialize by Power Cycle | If the processor doesn't support CIS-IP2, you can choose to have the processor cycle through power, mute and some sources on power up to allow for discovery of initial states for the integration |
+| Zones to add as media players | This option creates seperate media player entities for the selected zones if they exist |
+
+### Show Inputs and Sound Modes
+
+<img width="1186" height="1620" alt="image" src="https://github.com/user-attachments/assets/d965dfe5-d1c7-4750-a58b-8c1c702ba8ac" />
+
+Here you can select which inputs and sounds modes will be visible in the integration
+
+### Input Names
+
+<img width="1176" height="1624" alt="image" src="https://github.com/user-attachments/assets/dd183ae7-4b71-4542-acea-f7bfb549568f" />
+
+Here you can override the default names of the inputs to, for example, match the names you've chosen on the AVR itself.
+
 ## Device & Entities
 A device will be created with the name given during setup.
 
@@ -89,14 +118,13 @@ Each zone entity supports power, volume (set and step), mute and source.  The so
 
 The AVR doesn't report a zone's state on request, so when Home Assistant starts, the zone's volume is read but its power and source show as unknown until they next change, either from Home Assistant or from the AVR or its remote.  Zone support has been tested with the STR-ZA1100ES.
 
-## Sony AVR. Send Command
-
-The integration provides a service which allows you to send commands to the AVR.  This service provides you with a dropdown list of all of the available commands.
-
-
 ### Media Player State
 
 The integration tracks the the state of the volume on the AVR and creates and maintains an attribute on the media_player.sonyavr entity.  This is the volume as displayed on the AVR, rather than the percentage volume which Home Assistant provides.
+
+## Sony AVR. Send Command
+
+The integration provides a service which allows you to send commands to the AVR.  This service provides you with a dropdown list of all of the available commands.
 
 ## References
 
