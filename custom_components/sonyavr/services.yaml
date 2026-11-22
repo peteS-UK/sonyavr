@@ -28,7 +28,7 @@ send_command:
             - Byte Array String
     Value:
       name: Command Value
-      description: 'The value associated with the command.'
+      description: 'The value associated with the command. For Set Volume, the volume in the AVR''s own units: dB (e.g. -40.5) or steps (e.g. 30), depending on its Volume Display setting, not 0-1.'
       required: false
       selector:
         text:

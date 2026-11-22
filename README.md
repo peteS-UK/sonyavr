@@ -1,7 +1,7 @@
-# Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850, STR-DN1060 & Other AVRs
+  # Home Assistant to Sony AVR STR-DN1040, STR_DA5800ES, STR-DN850, STR-DN1060 & Other AVRs
 
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#installation-with-marketplace)
 [![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/sonyavr)](#)
@@ -33,17 +33,24 @@ The integration is a Local Push integration - i.e. it subscribes to notification
 ## Network Standby
 The integration requires Network Standby to be available and enabled on the AVR.  Please make sure Network Standby is enabled befoer installing the integration.
 
-## Installation
+## Installation with Marketplace
 
-The preferred installation approach is via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
+The [Marketplace](https://www.home-assistant.io/integrations/marketplace/) is built into **Home Assistant 2026.11 and later**; no separate store installation is needed.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=peteS-UK&repository=sonyavr&category=integration)
+1. As an administrator, open **Settings → Marketplace** and accept its first-use notice if prompted.
+2. Search for **Sony AVR** and open its page.
+3. Choose **Install**, review the version, then confirm **Install**. Account setup opens when installation finishes; continue with [Configuration](#configuration). A fresh installation does not need a restart.
 
+Existing HACS installations migrate automatically when you upgrade Home Assistant to 2026.11. Your installed integration and updates carry over; you do not need to reinstall it.
+
+## Installation with HACS
+
+For older versions of Home Assistant, you can install via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  Search for **Sony AVR** and install the integration.
+
+## Manual Installation
 If you want to download the integration manually, create a new folder called sonyavr under your custom_components folder in your config folder.  If the custom_components folder doesn't exist, create it first.  Once created, download the files and folders from the [github repo](https://github.com/peteS-UK/sonyavr/tree/main/custom_components/sonyavr) into this new sonyavr folder.
 
 Once downloaded either via HACS or manually, restart your Home Assistant server.
-
-## Configuration
 
 Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the SONY AVR integration, or click the shortcut button below (requires My Homeassistant configured).
 
@@ -52,10 +59,45 @@ instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://m
 
 This will display the configuration page.  
 
+## Configuration
+
 ### Manual Entry
 You need to enter the details of your processor manually - IP address, name, model and port.
 
 When you select Submit, the configuration will setup the components in Home Assistant.  It will create one device, two entities and a service.
+
+## Options
+
+Omce installed, you can configure the integration using the Configure wheel on the integration configuration entry.  Selecting Configure will give 3 options
+
+<img width="1166" height="552" alt="image" src="https://github.com/user-attachments/assets/16b81908-e4cd-4ef7-828d-886f15512fc3" />
+
+
+### Configuration
+
+<img width="1164" height="1278" alt="image" src="https://github.com/user-attachments/assets/861df1ae-916f-42d8-8df4-7db5eae19229" />
+
+
+| Option | Description |
+| --- | --- |
+| Maximum Allowed Volume | Restrict the maximum volume to prevent, for example, very loud volume being selected through the volume slider |
+| Number of seconds between connectivity check pings | The integration can periodically ping the AVR to check connectivity.  Selecting 0 will disable the ping |
+| Initialize by Power Cycle | If the processor doesn't support CIS-IP2, you can choose to have the processor cycle through power, mute and some sources on power up to allow for discovery of initial states for the integration |
+| Zones to add as media players | This option creates seperate media player entities for the selected zones if they exist |
+
+### Show Inputs and Sound Modes
+
+<img width="1186" height="1620" alt="image" src="https://github.com/user-attachments/assets/d965dfe5-d1c7-4750-a58b-8c1c702ba8ac" />
+
+
+Here you can select which inputs and sounds modes will be visible in the integration
+
+### Input Names
+
+<img width="1176" height="1624" alt="image" src="https://github.com/user-attachments/assets/dd183ae7-4b71-4542-acea-f7bfb549568f" />
+
+
+Here you can override the default names of the inputs to, for example, match the names you've chosen on the AVR itself.
 
 ## Device & Entities
 A device will be created with the name given during setup.
@@ -80,14 +122,13 @@ Each zone entity supports power, volume (set and step), mute and source.  The so
 
 The AVR doesn't report a zone's state on request, so when Home Assistant starts, the zone's volume is read but its power and source show as unknown until they next change, either from Home Assistant or from the AVR or its remote.  Zone support has been tested with the STR-ZA1100ES.
 
-## Sony AVR. Send Command
-
-The integration provides a service which allows you to send commands to the AVR.  This service provides you with a dropdown list of all of the available commands.
-
-
 ### Media Player State
 
 The integration tracks the the state of the volume on the AVR and creates and maintains an attribute on the media_player.sonyavr entity.  This is the volume as displayed on the AVR, rather than the percentage volume which Home Assistant provides.
+
+## Sony AVR. Send Command
+
+The integration provides a service which allows you to send commands to the AVR.  This service provides you with a dropdown list of all of the available commands.
 
 ## References
 

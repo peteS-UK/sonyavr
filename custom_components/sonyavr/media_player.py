@@ -101,6 +101,18 @@ async def async_setup_entry(
     )
 
 
+async def _async_cancel_startup(task: asyncio.Task | None) -> None:
+    """Cancel an entity's startup routine if it is still running."""
+    if task is None or task.done() or task is asyncio.current_task():
+        return
+    _LOGGER.debug("Cancelling startup routine")
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
 class SonyAVRDevice(MediaPlayerEntity):
     # Representation of a Sony AVR
 
@@ -113,8 +125,13 @@ class SonyAVRDevice(MediaPlayerEntity):
         ).replace(":", "_")
         self._device_class = "receiver"
         self._notifier_task: asyncio.Task | None = None
+        self._ping_task: asyncio.Task | None = None
+        self._startup_task: asyncio.Task | None = None
 
     async def _async_startup(self, loop):
+        # Kept so removing the entity (unload/reload) can cancel it: otherwise
+        # it carries on and sends commands alongside the new entity
+        self._startup_task = asyncio.current_task()
         self._notifier_task = self.hass.async_create_background_task(
             self._device.run_notifier(), name="sonyavr notifier task"
         )
@@ -125,9 +142,28 @@ class SonyAVRDevice(MediaPlayerEntity):
 
         await asyncio.sleep(1)
 
+        # Always read over CIS-IP2 when the AVR has it, even if a command (e.g.
+        # an automation turning the AVR on at HA start) already set the power
+        # state: this is also what connects CIS-IP2 for the session
+        if await self._device.async_cisip2_read_main():
+            # State read directly, so no need to nudge mute, volume or input,
+            # or to power cycle the AVR
+            if self._device.state_service.volume_model is None:
+                await self._device.async_detect_volume_model()
+            _LOGGER.debug("Device states initialised from CIS-IP2")
+            return
+
         if self._device.state_service.power is None:
             _LOGGER.debug("Power state is uninitialised, so initialising all states")
             _power_state = await self._device.async_get_power_state()
+            if _power_state is None:
+                # Unreachable, which doesn't mean off: power cycling now would
+                # turn a running AVR off once it is back
+                _LOGGER.warning(
+                    "AVR not reachable at startup; will initialise when it is"
+                )
+                await self._device.async_reload_when_reachable()
+                return
             _power_cycle = self._config_entry.options.get(CONF_POWER_CYCLE_INIT, True)
 
             # Turn on and off to force the feedback
@@ -145,7 +181,7 @@ class SonyAVRDevice(MediaPlayerEntity):
         """Subscribe to device events."""
         self._device.set_update_cb(self.async_update_callback)
 
-        async_at_started(self.hass, self._async_startup)
+        self.async_on_remove(async_at_started(self.hass, self._async_startup))
 
     def async_update_callback(self, reason=False):
         """Update the device's state."""
@@ -155,6 +191,9 @@ class SonyAVRDevice(MediaPlayerEntity):
     async def async_will_remove_from_hass(self) -> None:
         """Disconnect device object when removed."""
         self._device.set_update_cb(None)
+        await _async_cancel_startup(self._startup_task)
+        self._startup_task = None
+        await self._device.async_stop_cisip2()
 
         await self._device.command_service.async_disconnect()
 
@@ -293,13 +332,11 @@ class SonyAVRDevice(MediaPlayerEntity):
             # 	# device is muted or range isn't yet defined
             return 0.0
         else:
-            return float(
-                "%.2f"
-                % (
-                    (self._device.volume - self._device.volume_min)
-                    / self._device.volume_range
-                )
-            )
+            level = (
+                self._device.volume - self._device.volume_min
+            ) / self._device.volume_range
+            # Clamp: MIN (-inf) is reported below the scale's minimum
+            return round(min(max(level, 0.0), 1.0), 2)
 
     async def async_set_volume_level(self, volume: float) -> None:
         _vol = (volume * self._device.volume_range) + self._device.volume_min
@@ -371,6 +408,7 @@ class SonyAVRZone(MediaPlayerEntity):
         self._attr_unique_id = f"{main_id}_zone{zone}"
         self._attr_name = f"Zone {zone}"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, main_id)})
+        self._startup_task: asyncio.Task | None = None
 
     @property
     def _state(self):
@@ -382,15 +420,18 @@ class SonyAVRZone(MediaPlayerEntity):
 
     async def async_added_to_hass(self):
         self._device.set_zone_update_cb(self._zone, self.async_write_ha_state)
-        async_at_started(self.hass, self._async_startup)
+        self.async_on_remove(async_at_started(self.hass, self._async_startup))
 
     async def _async_startup(self, _hass):
+        self._startup_task = asyncio.current_task()
         # Let the main entity connect first
         await asyncio.sleep(5)
         await self._device.async_zone_update_status(self._zone)
 
     async def async_will_remove_from_hass(self) -> None:
         self._device.set_zone_update_cb(self._zone, None)
+        await _async_cancel_startup(self._startup_task)
+        self._startup_task = None
 
     @property
     def icon(self):
