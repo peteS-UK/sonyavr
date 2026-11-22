@@ -72,9 +72,11 @@ Omce installed, you can configure the integration using the Configure wheel on t
 
 <img width="1166" height="552" alt="image" src="https://github.com/user-attachments/assets/16b81908-e4cd-4ef7-828d-886f15512fc3" />
 
+
 ### Configuration
 
 <img width="1164" height="1278" alt="image" src="https://github.com/user-attachments/assets/861df1ae-916f-42d8-8df4-7db5eae19229" />
+
 
 | Option | Description |
 | --- | --- |
@@ -87,11 +89,13 @@ Omce installed, you can configure the integration using the Configure wheel on t
 
 <img width="1186" height="1620" alt="image" src="https://github.com/user-attachments/assets/d965dfe5-d1c7-4750-a58b-8c1c702ba8ac" />
 
+
 Here you can select which inputs and sounds modes will be visible in the integration
 
 ### Input Names
 
 <img width="1176" height="1624" alt="image" src="https://github.com/user-attachments/assets/dd183ae7-4b71-4542-acea-f7bfb549568f" />
+
 
 Here you can override the default names of the inputs to, for example, match the names you've chosen on the AVR itself.
 
